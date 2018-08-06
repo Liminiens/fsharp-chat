@@ -3,75 +3,77 @@ namespace FSharpChat.Bot
 open System
 
 module Telegram =
+    open MihaZupan
     open System.Net
     open Telegram.Bot
     open Telegram.Bot.Args
     open Telegram.Bot.Types
     
     [<AllowNullLiteral>]
-    type private BotConfigurationJson() =
+    type BotConfigurationJson() =
          member val Token = "" with get, set
          member val Socks5Host = "" with get, set
-         member val Socks5Port = "" with get, set     
+         member val Socks5Port = "" with get, set 
+         member val Socks5Username = "" with get, set  
+         member val Socks5Password = "" with get, set      
     
-    type Socks5Configuration = { Host: string; Port: string }
+    type Socks5Configuration = { Host: string; Port: int; Username: string; Password: string }
     
     type BotConfiguration = { Token: string; Socks5Proxy: Socks5Configuration option}
     
     type BotConfigurationError =
         | FileFormatError 
         | NoToken
-        | NoSocks5Port
-        | NoSocks5Host
+        | ProxyConfigurationError
     
     module BotConfiguration =
+        open System.Reflection
         open System.IO
         open Microsoft.Extensions.Configuration
         
-        let load (fileName: string) =
+        let load =
             let isEmpty str = String.IsNullOrWhiteSpace(str)
                      
             let configuration = 
-                ConfigurationBuilder()
-                    .SetBasePath(Directory.GetCurrentDirectory())
-                    .AddJsonFile(fileName)
-                    .Build()
-                    .GetSection(String.Empty)
-                    .Get<BotConfigurationJson>()
-                    |> Option.ofObj
+                let builder = 
+                    ConfigurationBuilder()
+                        .SetBasePath(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location))
+                        .AddJsonFile("botconfig.json")
+                        .Build()
+                let settings = BotConfigurationJson()
+                builder.GetSection("Settings").Bind(settings)
+                settings |> Option.ofObj    
             
             let (|Valid|TokenEmpty|) token =
                 if not <| isEmpty token then Valid else TokenEmpty
             
-            let (|WithProxy|NoPort|NoHost|WithoutProxy|) (host, port) = 
+            let (|WithProxy|WithoutProxy|ProxyConfigurationError|) (host, port, username, password) = 
                 let isHostEmpty = isEmpty host
                 let isPortEmpty = isEmpty port
+                let isUsernameEmpty = isEmpty username
+                let isPasswordEmpty = isEmpty password
                 
-                match (isHostEmpty, isPortEmpty) with 
-                | (true, true) -> 
-                    WithoutProxy
-                | (true, false) ->
-                    NoPort
-                | (false, true) ->
-                    NoHost
-                | (false, false) ->
+                let settings = [isHostEmpty; isPortEmpty; isUsernameEmpty; isPasswordEmpty]
+                match settings |> List.forall (fun s -> s = false) with
+                | true ->
                     WithProxy
+                | false ->
+                    if settings |> List.distinct |> List.length > 1 then 
+                        ProxyConfigurationError else WithoutProxy
                                    
             match configuration with
             | Some(conf)  ->
                 match conf.Token with
                 | Valid ->
-                    match conf.Socks5Host, conf.Socks5Port with
+                    match conf.Socks5Host, conf.Socks5Port, conf.Socks5Username, conf.Socks5Password with
                     | WithProxy ->
-                        { Token = conf.Token; Socks5Proxy = Some({ Host = conf.Socks5Host; Port = conf.Socks5Port }) } 
+                        { Token = conf.Token; Socks5Proxy = Some({ Host = conf.Socks5Host; Port = int conf.Socks5Port; Username = conf.Socks5Username; Password = conf.Socks5Password }) } 
                         |> Ok
                     | WithoutProxy ->
                         { Token = conf.Token; Socks5Proxy = None }
                         |> Ok
-                    | NoPort ->
-                        Error NoSocks5Port
-                    | NoHost ->
-                        Error NoSocks5Host
+                    | ProxyConfigurationError ->
+                        Error ProxyConfigurationError
                 | TokenEmpty ->
                     Error NoToken
             | None -> 
@@ -109,15 +111,68 @@ module Telegram =
                 Voice
             | _ -> 
                 Skip
-    
-    let private createBot token (proxy: option<IWebProxy>) =
-        match proxy with 
-        | Some p -> 
-            TelegramBotClient(token, p);
-        | None ->
-            TelegramBotClient(token)
             
-    let init token proxy (onMessageHandler: TelegramMessage -> unit) =
-        let bot = createBot token proxy        
-        bot.OnMessage |> Event.add (fun args -> onMessageHandler (TelegramMessage.parse args))   
-        bot.StartReceiving()
+    let createBot (configuration: BotConfiguration) =
+        let bot = 
+            match configuration.Socks5Proxy with 
+            | Some proxy ->
+                let socksProxy = (HttpToSocks5Proxy(proxy.Host, proxy.Port, proxy.Username, proxy.Password) :> IWebProxy)
+                TelegramBotClient(configuration.Token, socksProxy)
+            | None ->
+                TelegramBotClient(configuration.Token)
+        bot
+        
+module BotActors = 
+    open Telegram 
+    open Akkling  
+    open Akkling.Actors
+    open Akka.Routing
+    open System.Threading.Tasks
+    open Telegram.Bot.Types.Enums
+           
+    let private messageHandlerProps =
+        fun (mailbox: Actor<_>) -> 
+            let rec loop () = actor {
+               let! message = mailbox.Receive()
+               printfn "%s, %s" message (mailbox.Self.Path.ToStringWithUid())
+               return! loop ()
+            }
+            loop ()
+        |> props
+        
+    let botProps (configuration: BotConfiguration) =
+        fun (mailbox: Actor<_>) ->  
+            let bot = Telegram.createBot configuration
+                               
+            let messageHandlers = 
+                let router = SmallestMailboxPool(10).WithResizer(DefaultResizer(1, 10)) :> RouterConfig
+                spawn mailbox "message-handler" { messageHandlerProps with Router = Some router } 
+                
+            let handler = 
+                fun args -> 
+                    let message = TelegramMessage.parse args
+                    match message with
+                    | Text ->
+                        messageHandlers <! "Text"
+                    | _ -> 
+                        ()
+                                           
+            let botHandler = 
+                Task.Run(
+                    fun _ ->
+                        try 
+                            bot.OnMessage |> Event.add (fun c -> printfn "%s" c.Message.Text )
+                            let self = bot.GetMeAsync() |> Async.AwaitTask |> Async.RunSynchronously
+                            printfn "%s" (self.Username);
+                            bot.StartReceiving()                          
+                        with 
+                        | :? Exception as e ->
+                            printfn "%s" e.Message             
+                )          
+        
+            let rec loop () = actor {
+               let! message = mailbox.Receive()
+               return! loop ()
+            }
+            loop ()
+        |> props

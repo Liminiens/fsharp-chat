@@ -27,4 +27,10 @@
       <PackageReference Include="Telegram.Bot" Version="14.8.0" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Content Include="botconfig.json">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
 </Project>
