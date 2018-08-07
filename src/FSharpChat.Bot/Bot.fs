@@ -135,13 +135,10 @@ module Telegram =
                 TelegramBotClient(configuration.Token)
         bot
         
-    module BotActors = 
+    module ActorProps = 
         open Akkling  
         open Akkling.Actors
         open Akka.Routing
-        open System.Threading.Tasks
-        open Telegram
-        open Telegram.Bot.Types.Enums
                
         let private messageHandlerProps =
             fun (mailbox: Actor<_>) -> 
@@ -158,35 +155,15 @@ module Telegram =
             |> props
             
         let botProps (configuration: BotConfiguration) =
-            fun (mailbox: Actor<_>) ->  
-                let bot = createBot configuration
-                                   
+            fun (mailbox: Actor<_>) ->                               
                 let messageHandlers = 
                     let router = SmallestMailboxPool(10).WithResizer(DefaultResizer(1, 2)) :> RouterConfig
-                    spawn mailbox "message-handler" { messageHandlerProps with Router = Some router } 
+                    spawn mailbox "message" { messageHandlerProps with Router = Some router } 
                     
-                let handler = 
-                    fun args -> 
-                        let message = TelegramMessage.parse args
-                        match message with
-                        | Text(chat, user, text) ->
-                            messageHandlers <! message
-                        | _ -> 
-                            ()
-                                               
-                let botHandler = 
-                    Task.Run(
-                        fun _ ->
-                            try 
-                                bot.OnMessage |> Event.add (fun args -> messageHandlers <! (TelegramMessage.parse args))
-                                let self = bot.GetMeAsync() |> Async.AwaitTask |> Async.RunSynchronously
-                                printfn "%s" (self.Username);
-                                bot.StartReceiving()                          
-                            with 
-                            | :? Exception as e ->
-                                printfn "%s" e.Message             
-                    )          
-            
+                let bot = createBot configuration
+                bot.OnMessage |> Event.add (fun args -> messageHandlers <! (TelegramMessage.parse args))
+                bot.StartReceiving()
+                
                 let rec loop () = actor {
                    let! message = mailbox.Receive()
                    return! loop ()

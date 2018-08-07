@@ -19,7 +19,7 @@ module Main =
             let config = Configuration.parse "akka { loglevel=INFO,  loggers=[\"Akka.Logger.Serilog.SerilogLogger, Akka.Logger.Serilog\"]}"       
             use system = System.create "telegram-bot" config
             
-            let botActor = spawn system "bot" (BotActors.botProps botConfig)
+            let botActor = spawn system "bot" (ActorProps.botProps botConfig)
             
             Console.ReadKey() |> ignore
             
