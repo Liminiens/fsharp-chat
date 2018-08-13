@@ -21,9 +21,9 @@ module Main =
             
             let botActor = spawn system "bot" (ActorProps.botProps botConfig)
             
-            Console.ReadKey() |> ignore
+            Console.In.ReadLineAsync().GetAwaiter().GetResult() |> ignore
             
-        | Error _ -> 
-            ()
+        | Error err -> 
+            printfn "%s" err
             
         0 // return an integer exit code
