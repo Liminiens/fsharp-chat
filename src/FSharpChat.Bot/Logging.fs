@@ -12,7 +12,7 @@ module Logger =
             .MinimumLevel.Debug()
             .Enrich.FromLogContext()
             .Enrich.WithExceptionDetails()
-            .WriteTo.ColoredConsole()
-            .WriteTo.Async(fun config -> 
-                config.File(new CompactJsonFormatter(), "./logs/log-.json", rollingInterval = RollingInterval.Day) |> ignore)
+            .WriteTo.ColoredConsole(LogEventLevel.Debug)
+            (*.WriteTo.Async(fun config -> 
+                config.File(new CompactJsonFormatter(), "./logs/log-.json", rollingInterval = RollingInterval.Day) |> ignore)*)
             .CreateLogger() :> ILogger
