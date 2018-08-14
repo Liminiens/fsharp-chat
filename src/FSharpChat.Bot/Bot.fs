@@ -153,27 +153,30 @@ module Telegram =
             |> props
         
         type BotMessage = 
-            | PrintSelf of string    
+            | PrintBotInfo of string    
             
         let botProps (configuration: BotConfiguration) =
             fun (mailbox: Actor<_>) ->                               
                 let messageMailbox = 
                     let router = SmallestMailboxPool(10).WithResizer(DefaultResizer(1, 2)) :> RouterConfig
-                    spawn mailbox "message" { messageMailboxProps with Router = Some router } 
+                    spawn mailbox "new-message" { messageMailboxProps with Router = Some router } 
                     
                 let bot = createBot configuration
                 bot.OnMessage |> Event.add (fun args -> messageMailbox <! (TelegramMessage.parse args))
-                bot.StartReceiving()
-                bot.GetMeAsync() |> Async.AwaitTask |> Async.map (fun v -> PrintSelf(v.Username)) |!> mailbox.Self
+                
+                bot.GetMeAsync() 
+                |> Async.AwaitTask 
+                |> Async.map (fun me -> PrintBotInfo(me.Username)) 
+                |!> mailbox.Self
                 
                 let rec loop () = actor {
                    let! message = mailbox.Receive()
                                  
                    match message with 
-                   | PrintSelf(self) ->
-                        printfn "My name is %s" self
-                   | _ ->
-                        ()
+                   | PrintBotInfo(username) ->
+                       sprintf "Bot username is %s" username |> logInfo mailbox
+                       bot.StartReceiving()
+                       logInfo mailbox "Bot started receiving"
                         
                    return! loop ()
                 }
