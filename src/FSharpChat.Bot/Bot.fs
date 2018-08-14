@@ -74,14 +74,14 @@ module Telegram =
             | None -> 
                 Error "Configuration file parsing error"
                 
-    type Chat = { Id: int64; Title: string; }
+    type Chat = { Id: int64; Title: string; Description: string; }
     
     type User = { Id: int32; Username: string; FirstName: string; LastName: string; }
     
-    type Text = { Message: string }
+    type TextMessage = { Message: string; Date: DateTime; }
          
     type Message = 
-        | Text of Chat * User * Text
+        | Text of Chat * User * TextMessage
         | Audio
         | Document
         | Video
@@ -92,12 +92,17 @@ module Telegram =
     
     module TelegramMessage =
         open Telegram.Bot.Types.Enums
+        open FSharpx.Control
         
-        let parse (messageArgs: MessageEventArgs) =
+        let parse (bot: TelegramBotClient) (messageArgs: MessageEventArgs) =
             let message = messageArgs.Message
+            
+            let chatEntity = bot.GetChatAsync(ChatId(message.Chat.Id)) |> Async.AwaitTask |> Async.RunSynchronously 
+            
             let chat = 
                 { Title = message.Chat.Title; 
-                  Id = message.Chat.Id }
+                  Id = message.Chat.Id;
+                  Description = chatEntity.Description }
             let user = 
                 { Id = message.From.Id; 
                   Username = message.From.Username; 
@@ -106,7 +111,7 @@ module Telegram =
                   
             match message.Type with 
             | MessageType.Text -> 
-                Text(chat, user, { Message = message.Text; })
+                Text(chat, user, { Message = message.Text; Date = message.Date })
             | MessageType.Audio -> 
                 Audio
             | MessageType.Document ->
@@ -162,7 +167,7 @@ module Telegram =
                     spawn mailbox "new-message" { messageMailboxProps with Router = Some router } 
                     
                 let bot = createBot configuration
-                bot.OnMessage |> Event.add (fun args -> messageMailbox <! (TelegramMessage.parse args))
+                bot.OnMessage |> Event.add (fun args -> messageMailbox <! (TelegramMessage.parse bot args))
                 
                 bot.GetMeAsync() 
                 |> Async.AwaitTask 
