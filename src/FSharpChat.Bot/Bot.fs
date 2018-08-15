@@ -62,7 +62,12 @@ module Telegram =
                 | Valid ->
                     match conf.Socks5Host, conf.Socks5Port, conf.Socks5Username, conf.Socks5Password with
                     | WithProxy ->
-                        { Token = conf.Token; Socks5Proxy = Some({ Host = conf.Socks5Host; Port = int conf.Socks5Port; Username = conf.Socks5Username; Password = conf.Socks5Password }) } 
+                        let proxy = 
+                            { Host = conf.Socks5Host; 
+                              Port = int conf.Socks5Port; 
+                              Username = conf.Socks5Username; 
+                              Password = conf.Socks5Password }
+                        { Token = conf.Token; Socks5Proxy = Some proxy } 
                         |> Ok
                     | WithoutProxy ->
                         { Token = conf.Token; Socks5Proxy = None }
@@ -80,11 +85,17 @@ module Telegram =
     
     type Text = { Value: string; Date: DateTime; }
     
-    type Audio = { Performer: string; Title: string;  MimeType: string option; File: byte[] }
+    type Audio = { Performer: string; Title: string;  MimeType: option<string>; File: byte[] }
     
+    type MessageId = MessageId of int
+
+    type ReplyToId = ReplyToId of int
+
+    type MessageInfo = { MessageId: MessageId; ReplyToId: option<ReplyToId>; Forwarded: bool; Chat: Chat; User:User }
+
     type Message = 
-        | TextMessage of Chat * User * Text
-        | AudioMessage of Chat * User * Audio
+        | TextMessage of MessageInfo * Text
+        | AudioMessage of MessageInfo * Audio
         | Document
         | Video
         | Sticker
@@ -108,7 +119,6 @@ module Telegram =
 
             async {
                 let message = messageArgs.Message
-            
                 let! chatEntity = bot.GetChatAsync(ChatId(message.Chat.Id)) |> Async.AwaitTask
             
                 let chat = 
@@ -120,18 +130,31 @@ module Telegram =
                       Username = message.From.Username; 
                       FirstName = message.From.FirstName; 
                       LastName = message.From.LastName }
+                
+                let replyToId = 
+                    if not <| isNull message.ReplyToMessage 
+                        then Some(ReplyToId(message.ReplyToMessage.MessageId))
+                        else None
+
+                let messageInfo = 
+                    { MessageId = MessageId(message.MessageId);
+                      ReplyToId = replyToId;
+                      Forwarded = not <| isNull message.ForwardFrom
+                      Chat = chat;
+                      User = user }
 
                 match message.Type with 
                     | MessageType.Text -> 
-                        return TextMessage(chat, user, { Value = message.Text; Date = message.Date })
+                        let text = { Value = message.Text; Date = message.Date }
+                        return TextMessage(messageInfo, text)
                     | MessageType.Audio ->
                         let! audioFile = downloadFile message.Audio.FileId
-                        let audioInfo = 
+                        let audio = 
                             { Title = message.Audio.Title; 
                               Performer = message.Audio.Performer;
                               MimeType = Option.ofObj message.Audio.MimeType;
                               File = audioFile }
-                        return AudioMessage(chat, user, audioInfo)
+                        return AudioMessage(messageInfo, audio)
                     | MessageType.Document ->
                         return Document
                     | MessageType.Video ->
@@ -164,10 +187,10 @@ module Telegram =
                 let rec loop () = actor {
                    let! message = mailbox.Receive()
                    match message with
-                   | TextMessage(chat, user, message) ->
-                      printfn "%s %s %s" message.Value user.FirstName chat.Title
-                   | AudioMessage(chat, user, message) ->
-                      printfn "%s %i %s %s" message.Title message.File.Length user.FirstName chat.Title
+                   | TextMessage(info, message) ->
+                      printfn "%s %s %s" message.Value info.User.FirstName info.Chat.Title
+                   | AudioMessage(info, message) ->
+                      printfn "%s %i %s %s" message.Title message.File.Length info.User.FirstName info.Chat.Title
                    | _ ->
                       ()
                    return! loop ()
