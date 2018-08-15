@@ -105,7 +105,6 @@ module Telegram =
     
     module TelegramMessage =
         open Telegram.Bot.Types.Enums
-        open FSharpx.Control
         
         let parse (bot: TelegramBotClient) (messageArgs: MessageEventArgs) =
             let downloadFile fileId = 
@@ -180,7 +179,6 @@ module Telegram =
     module ActorProps = 
         open Akkling  
         open Akka.Routing
-        open FSharpx.Control
                
         let private messageMailboxProps =
             fun (mailbox: Actor<_>) -> 
