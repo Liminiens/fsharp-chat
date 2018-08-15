@@ -23,7 +23,7 @@ module Main =
             
             Console.In.ReadLineAsync().GetAwaiter().GetResult() |> ignore
             
-        | Error err -> 
-            printfn "%s" err
+        | Error error -> 
+            Log.Logger.Error("Configuration error: {0}", error)
             
         0 // return an integer exit code

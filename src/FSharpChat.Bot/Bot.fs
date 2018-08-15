@@ -78,11 +78,13 @@ module Telegram =
     
     type User = { Id: int32; Username: string; FirstName: string; LastName: string; }
     
-    type TextMessage = { Message: string; Date: DateTime; }
-         
+    type Text = { Value: string; Date: DateTime; }
+    
+    type Audio = { Performer: string; Title: string;  MimeType: string option; File: byte[] }
+    
     type Message = 
-        | Text of Chat * User * TextMessage
-        | Audio
+        | TextMessage of Chat * User * Text
+        | AudioMessage of Chat * User * Audio
         | Document
         | Video
         | Sticker
@@ -95,51 +97,65 @@ module Telegram =
         open FSharpx.Control
         
         let parse (bot: TelegramBotClient) (messageArgs: MessageEventArgs) =
-            let message = messageArgs.Message
+            let downloadFile fileId = 
+                async {
+                    use stream = new System.IO.MemoryStream()
+                    do! bot.GetInfoAndDownloadFileAsync(fileId, stream) 
+                        |> Async.AwaitTask
+                        |> Async.Ignore
+                    return stream.ToArray()
+                }
+
+            async {
+                let message = messageArgs.Message
             
-            let chatEntity = bot.GetChatAsync(ChatId(message.Chat.Id)) |> Async.AwaitTask |> Async.RunSynchronously 
+                let! chatEntity = bot.GetChatAsync(ChatId(message.Chat.Id)) |> Async.AwaitTask
             
-            let chat = 
-                { Title = message.Chat.Title; 
-                  Id = message.Chat.Id;
-                  Description = chatEntity.Description }
-            let user = 
-                { Id = message.From.Id; 
-                  Username = message.From.Username; 
-                  FirstName = message.From.FirstName; 
-                  LastName = message.From.LastName }
-                  
-            match message.Type with 
-            | MessageType.Text -> 
-                Text(chat, user, { Message = message.Text; Date = message.Date })
-            | MessageType.Audio -> 
-                Audio
-            | MessageType.Document ->
-                Document
-            | MessageType.Video ->
-                Video
-            | MessageType.Sticker ->
-                Sticker
-            | MessageType.Photo ->
-                Photo
-            | MessageType.Voice ->
-                Voice
-            | _ -> 
-                Skip
+                let chat = 
+                    { Title = message.Chat.Title; 
+                      Id = message.Chat.Id;
+                      Description = chatEntity.Description }
+                let user = 
+                    { Id = message.From.Id; 
+                      Username = message.From.Username; 
+                      FirstName = message.From.FirstName; 
+                      LastName = message.From.LastName }
+
+                match message.Type with 
+                    | MessageType.Text -> 
+                        return TextMessage(chat, user, { Value = message.Text; Date = message.Date })
+                    | MessageType.Audio ->
+                        let! audioFile = downloadFile message.Audio.FileId
+                        let audioInfo = 
+                            { Title = message.Audio.Title; 
+                              Performer = message.Audio.Performer;
+                              MimeType = Option.ofObj message.Audio.MimeType;
+                              File = audioFile }
+                        return AudioMessage(chat, user, audioInfo)
+                    | MessageType.Document ->
+                        return Document
+                    | MessageType.Video ->
+                        return Video
+                    | MessageType.Sticker ->
+                        return Sticker
+                    | MessageType.Photo ->
+                        return Photo
+                    | MessageType.Voice ->
+                        return Voice
+                    | _ -> 
+                        return Skip
+            }     
             
     let createBot (configuration: BotConfiguration) =
-        let bot = 
-            match configuration.Socks5Proxy with 
-            | Some proxy ->
-                let socksProxy = (HttpToSocks5Proxy(proxy.Host, proxy.Port, proxy.Username, proxy.Password) :> IWebProxy)
-                TelegramBotClient(configuration.Token, socksProxy)
-            | None ->
-                TelegramBotClient(configuration.Token)
-        bot
+        match configuration.Socks5Proxy with 
+        | Some proxy ->
+            let socksProxy = (HttpToSocks5Proxy(proxy.Host, proxy.Port, proxy.Username, proxy.Password) :> IWebProxy)
+            TelegramBotClient(configuration.Token, socksProxy)
+        | None ->
+            TelegramBotClient(configuration.Token)
         
     module ActorProps = 
         open Akkling  
-        open Akkling.Actors
         open Akka.Routing
         open FSharpx.Control
                
@@ -148,8 +164,10 @@ module Telegram =
                 let rec loop () = actor {
                    let! message = mailbox.Receive()
                    match message with
-                   | Text(chat, user, message) ->
-                      printfn "%s %s" message.Message chat.Title
+                   | TextMessage(chat, user, message) ->
+                      printfn "%s %s %s" message.Value user.FirstName chat.Title
+                   | AudioMessage(chat, user, message) ->
+                      printfn "%s %i %s %s" message.Title message.File.Length user.FirstName chat.Title
                    | _ ->
                       ()
                    return! loop ()
@@ -167,7 +185,7 @@ module Telegram =
                     spawn mailbox "new-message" { messageMailboxProps with Router = Some router } 
                     
                 let bot = createBot configuration
-                bot.OnMessage |> Event.add (fun args -> messageMailbox <! (TelegramMessage.parse bot args))
+                bot.OnMessage |> Event.add (fun args -> messageMailbox <!| (TelegramMessage.parse bot args))
                 
                 bot.GetMeAsync() 
                 |> Async.AwaitTask 
