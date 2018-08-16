@@ -6,6 +6,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <Compile Include="Common.fs" />
         <Compile Include="Async.fs" />
         <Compile Include="Logging.fs" />
         <Compile Include="Bot.fs" />

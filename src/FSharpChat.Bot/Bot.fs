@@ -85,7 +85,7 @@ module Telegram =
     
     type Text = { Value: string; Date: DateTime; }
     
-    type Audio = { Performer: string; Title: string;  MimeType: option<string>; File: byte[] }
+    type Audio = { Performer: option<string>; Title: option<string>;  MimeType: option<string>; File: byte[] }
     
     type MessageId = MessageId of int
 
@@ -115,32 +115,42 @@ module Telegram =
                         |> Async.Ignore
                     return stream.ToArray()
                 }
-
+            
             async {
                 let message = messageArgs.Message
-                let! chatEntity = bot.GetChatAsync(ChatId(message.Chat.Id)) |> Async.AwaitTask
-            
-                let chat = 
-                    { Title = message.Chat.Title; 
-                      Id = message.Chat.Id;
-                      Description = chatEntity.Description }
-                let user = 
-                    { Id = message.From.Id; 
-                      Username = message.From.Username; 
-                      FirstName = message.From.FirstName; 
-                      LastName = message.From.LastName }
                 
-                let replyToId = 
-                    if not <| isNull message.ReplyToMessage 
-                        then Some(ReplyToId(message.ReplyToMessage.MessageId))
-                        else None
+                let! messageInfo = 
+                    async {
+                        let! chat = 
+                            async {
+                                let! chatEntity = 
+                                    bot.GetChatAsync(ChatId(message.Chat.Id)) 
+                                    |> Async.AwaitTask
 
-                let messageInfo = 
-                    { MessageId = MessageId(message.MessageId);
-                      ReplyToId = replyToId;
-                      Forwarded = not <| isNull message.ForwardFrom
-                      Chat = chat;
-                      User = user }
+                                return 
+                                    { Title = message.Chat.Title; 
+                                      Id = message.Chat.Id;
+                                      Description = chatEntity.Description }
+                            }                    
+
+                        let user = 
+                            { Id = message.From.Id; 
+                              Username = message.From.Username; 
+                              FirstName = message.From.FirstName; 
+                              LastName = message.From.LastName }
+                
+                        let replyToId = 
+                            if isNotNull message.ReplyToMessage 
+                                then Some(ReplyToId(message.ReplyToMessage.MessageId))
+                                else None
+
+                        return
+                            { MessageId = MessageId(message.MessageId);
+                              ReplyToId = replyToId;
+                              Forwarded = isNotNull message.ForwardFrom
+                              Chat = chat;
+                              User = user }
+                    }                
 
                 match message.Type with 
                     | MessageType.Text -> 
@@ -149,8 +159,8 @@ module Telegram =
                     | MessageType.Audio ->
                         let! audioFile = downloadFile message.Audio.FileId
                         let audio = 
-                            { Title = message.Audio.Title; 
-                              Performer = message.Audio.Performer;
+                            { Title = Option.ofObj message.Audio.Title; 
+                              Performer = Option.ofObj message.Audio.Performer;
                               MimeType = Option.ofObj message.Audio.MimeType;
                               File = audioFile }
                         return AudioMessage(messageInfo, audio)
@@ -188,7 +198,8 @@ module Telegram =
                    | TextMessage(info, message) ->
                       printfn "%s %s %s" message.Value info.User.FirstName info.Chat.Title
                    | AudioMessage(info, message) ->
-                      printfn "%s %i %s %s" message.Title message.File.Length info.User.FirstName info.Chat.Title
+                      let title = match message.Title with | Some t -> t | None -> String.Empty
+                      printfn "%s %i %s %s" title message.File.Length info.User.FirstName info.Chat.Title
                    | _ ->
                       ()
                    return! loop ()
@@ -202,7 +213,7 @@ module Telegram =
         let botProps (configuration: BotConfiguration) =
             fun (mailbox: Actor<_>) ->                               
                 let messageMailbox = 
-                    let router = SmallestMailboxPool(10).WithResizer(DefaultResizer(1, 2)) :> RouterConfig
+                    let router = SmallestMailboxPool(10).WithResizer(DefaultResizer(1, 10, 3)) :> RouterConfig
                     spawn mailbox "new-message" { messageMailboxProps with Router = Some router } 
                     
                 let bot = createBot configuration
@@ -210,7 +221,7 @@ module Telegram =
                 
                 bot.GetMeAsync() 
                 |> Async.AwaitTask 
-                |> Async.map (fun me -> PrintBotInfo(me.Username)) 
+                |> Async.Map (fun me -> PrintBotInfo(me.Username)) 
                 |!> mailbox.Self
                 
                 let rec loop () = actor {
