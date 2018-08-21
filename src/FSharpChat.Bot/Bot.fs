@@ -83,13 +83,17 @@ module Telegram =
     
     type User = { Id: int32; Username: string; FirstName: string; LastName: string; }
     
-    type Text = { Value: string; Date: DateTime; }
-    
-    type Audio = { Performer: option<string>; Title: option<string>;  MimeType: option<string>; File: byte[] }
-    
+    type File = { MimeType: option<string>; File: byte[] }
+      
     type MessageId = MessageId of int
 
     type ReplyToId = ReplyToId of int
+    
+    type Text = { Value: string; Date: DateTime; }
+    
+    type Sticker = { Emoji: string; PackName: option<string>; Thumb: File; Sticker: File }
+    
+    type Audio = { Performer: option<string>; Title: option<string>; File: File }
 
     type MessageInfo = { MessageId: MessageId; ReplyToId: option<ReplyToId>; Forwarded: bool; Chat: Chat; User:User }
 
@@ -98,7 +102,7 @@ module Telegram =
         | AudioMessage of MessageInfo * Audio
         | Document
         | Video
-        | Sticker
+        | StickerMessage of MessageInfo * Sticker
         | Photo
         | Voice
         | Skip
@@ -113,7 +117,7 @@ module Telegram =
                     do! bot.GetInfoAndDownloadFileAsync(fileId, stream) 
                         |> Async.AwaitTask
                         |> Async.Ignore
-                    return stream.ToArray()
+                    return  stream.ToArray()
                 }
             
             async {
@@ -161,15 +165,23 @@ module Telegram =
                         let audio = 
                             { Title = Option.ofObj message.Audio.Title; 
                               Performer = Option.ofObj message.Audio.Performer;
-                              MimeType = Option.ofObj message.Audio.MimeType;
-                              File = audioFile }
+                              File = { MimeType = Option.ofObj message.Audio.MimeType; File = audioFile } }
                         return AudioMessage(messageInfo, audio)
                     | MessageType.Document ->
                         return Document
                     | MessageType.Video ->
                         return Video
                     | MessageType.Sticker ->
-                        return Sticker
+                        let! [|thumbFile; stickerFile|] = 
+                            [downloadFile message.Sticker.Thumb.FileId; downloadFile message.Sticker.FileId]
+                            |> Async.Parallel 
+                            
+                        let stickerInfo = 
+                            { Emoji = message.Sticker.Emoji;
+                              PackName = Option.ofObj message.Sticker.SetName;
+                              Thumb = { MimeType = Some("image/webp"); File = thumbFile };
+                              Sticker = { MimeType = Some("image/webp"); File = stickerFile } }
+                        return StickerMessage(messageInfo, stickerInfo)
                     | MessageType.Photo ->
                         return Photo
                     | MessageType.Voice ->
@@ -196,10 +208,9 @@ module Telegram =
                    let! message = mailbox.Receive()
                    match message with
                    | TextMessage(info, message) ->
-                      printfn "%s %s %s" message.Value info.User.FirstName info.Chat.Title
+                      ()
                    | AudioMessage(info, message) ->
-                      let title = match message.Title with | Some t -> t | None -> String.Empty
-                      printfn "%s %i %s %s" title message.File.Length info.User.FirstName info.Chat.Title
+                      ()
                    | _ ->
                       ()
                    return! loop ()
@@ -208,7 +219,7 @@ module Telegram =
             |> props
         
         type BotMessage = 
-            | PrintBotInfo of string    
+            | BotAlive of username: string    
             
         let botProps (configuration: BotConfiguration) =
             fun (mailbox: Actor<_>) ->                               
@@ -221,14 +232,14 @@ module Telegram =
                 
                 bot.GetMeAsync() 
                 |> Async.AwaitTask 
-                |> Async.Map (fun me -> PrintBotInfo(me.Username)) 
+                |> Async.Map (fun me -> BotAlive(me.Username)) 
                 |!> mailbox.Self
                 
                 let rec loop () = actor {
                    let! message = mailbox.Receive()
                                  
                    match message with 
-                   | PrintBotInfo(username) ->
+                   | BotAlive(username) ->
                        sprintf "Bot username is %s" username |> logInfo mailbox
                        bot.StartReceiving()
                        logInfo mailbox "Bot started receiving"
