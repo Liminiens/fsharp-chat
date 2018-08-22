@@ -2,12 +2,25 @@ namespace FSharpChat.Bot
 
 open System
 
+module Images = 
+    open ImageMagick
+
+    let getMimeType (data: byte[]) =
+        try
+            use image = new MagickImage(data)
+            let format = image.FormatInfo.MimeType
+            Some(format)
+        with
+        | :? Exception as e ->
+            None
+
 module Telegram =
     open MihaZupan
     open System.Net
     open Telegram.Bot
     open Telegram.Bot.Args
     open Telegram.Bot.Types
+    open System.IO
     
     [<AllowNullLiteral>]
     type BotConfigurationJson() =
@@ -83,7 +96,7 @@ module Telegram =
     
     type User = { Id: int32; Username: string; FirstName: string; LastName: string; }
     
-    type File = { MimeType: option<string>; File: byte[] }
+    type File = { MimeType: option<string>; Content: byte[] }
       
     type MessageId = MessageId of int
 
@@ -95,12 +108,14 @@ module Telegram =
     
     type Audio = { Performer: option<string>; Title: option<string>; File: File }
 
+    type Document = { FileName: string; File: File; Thumb: option<File> }
+
     type MessageInfo = { MessageId: MessageId; ReplyToId: option<ReplyToId>; Forwarded: bool; Chat: Chat; User:User }
 
     type Message = 
         | TextMessage of MessageInfo * Text
         | AudioMessage of MessageInfo * Audio
-        | Document
+        | Document of MessageInfo * Document
         | Video
         | StickerMessage of MessageInfo * Sticker
         | Photo
@@ -109,15 +124,16 @@ module Telegram =
     
     module TelegramMessage =
         open Telegram.Bot.Types.Enums
+        open Akkling
         
         let parse (bot: TelegramBotClient) (messageArgs: MessageEventArgs) =
             let downloadFile fileId = 
                 async {
-                    use stream = new System.IO.MemoryStream()
+                    let stream = new System.IO.MemoryStream()
                     do! bot.GetInfoAndDownloadFileAsync(fileId, stream) 
                         |> Async.AwaitTask
                         |> Async.Ignore
-                    return  stream.ToArray()
+                    return stream.ToArray()
                 }
             
             async {
@@ -165,22 +181,38 @@ module Telegram =
                         let audio = 
                             { Title = Option.ofObj message.Audio.Title; 
                               Performer = Option.ofObj message.Audio.Performer;
-                              File = { MimeType = Option.ofObj message.Audio.MimeType; File = audioFile } }
+                              File = { MimeType = Option.ofObj message.Audio.MimeType; Content = audioFile } }
                         return AudioMessage(messageInfo, audio)
                     | MessageType.Document ->
-                        return Document
+                        let! documentFile = downloadFile message.Document.FileId
+                        let! thumb = 
+                            match isNotNull message.Document.Thumb with
+                            | true ->
+                                async {        
+                                    let! thumbFile = downloadFile message.Document.Thumb.FileId
+                                    return
+                                        { MimeType = Images.getMimeType thumbFile; Content = thumbFile } |> Some
+                                }
+                            | false -> 
+                                Async.AsAsync None
+                        let document = 
+                            { FileName = message.Document.FileName;
+                                Thumb = thumb;
+                                File = { MimeType = Option.ofObj message.Document.MimeType; Content = documentFile } }
+
+                        return Document(messageInfo, document)
                     | MessageType.Video ->
                         return Video
                     | MessageType.Sticker ->
                         let! [|thumbFile; stickerFile|] = 
                             [downloadFile message.Sticker.Thumb.FileId; downloadFile message.Sticker.FileId]
-                            |> Async.Parallel 
+                            |> Async.Parallel
                             
                         let stickerInfo = 
                             { Emoji = message.Sticker.Emoji;
                               PackName = Option.ofObj message.Sticker.SetName;
-                              Thumb = { MimeType = Some("image/webp"); File = thumbFile };
-                              Sticker = { MimeType = Some("image/webp"); File = stickerFile } }
+                              Thumb = { MimeType = Images.getMimeType thumbFile; Content = thumbFile };
+                              Sticker = { MimeType = Images.getMimeType stickerFile; Content = stickerFile } }
                         return StickerMessage(messageInfo, stickerInfo)
                     | MessageType.Photo ->
                         return Photo

@@ -7,3 +7,8 @@ module Async =
             let! result = operation
             return f result
         }
+
+    let inline AsAsync value : Async<'T> = 
+        async {
+            return value
+        }
