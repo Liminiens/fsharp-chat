@@ -36,7 +36,6 @@ module Telegram =
     
     module BotConfiguration =
         open System.Reflection
-        open System.IO
         open Microsoft.Extensions.Configuration
         
         let load =
@@ -124,7 +123,7 @@ module Telegram =
     
     module TelegramMessage =
         open Telegram.Bot.Types.Enums
-        open Akkling
+        open Akka.FSharp
         
         let parse (bot: TelegramBotClient) (messageArgs: MessageEventArgs) =
             let downloadFile fileId = 
@@ -230,53 +229,59 @@ module Telegram =
         | None ->
             TelegramBotClient(configuration.Token)
         
-    module ActorProps = 
-        open Akkling  
+    module ActorProps =  
+        open Akka
+        open Akka.FSharp
         open Akka.Routing
+        open Akka.Actor
                
-        let private messageMailboxProps =
-            fun (mailbox: Actor<_>) -> 
-                let rec loop () = actor {
-                   let! message = mailbox.Receive()
-                   match message with
-                   | TextMessage(info, message) ->
-                      ()
-                   | AudioMessage(info, message) ->
-                      ()
-                   | _ ->
-                      ()
-                   return! loop ()
-                }
-                loop ()
-            |> props
+        let private telegramMessageActor (mailbox: Actor<_>) =
+            let rec loop () = actor {
+                let! message = mailbox.Receive()
+                match message with
+                | TextMessage(info, message) ->
+                    logInfo mailbox message.Value
+                | AudioMessage(info, message) ->      
+                    logInfo mailbox <| sprintf "Size: %i Name: %s" message.File.Content.Length (defaultArg message.Title "")
+                | StickerMessage(info, message) ->
+                    logInfo mailbox message.Emoji
+                | _ ->
+                    ()
+                return! loop ()
+            }
+            loop ()
         
         type BotMessage = 
             | BotAlive of username: string    
             
-        let botProps (configuration: BotConfiguration) =
-            fun (mailbox: Actor<_>) ->                               
-                let messageMailbox = 
-                    let router = SmallestMailboxPool(10).WithResizer(DefaultResizer(1, 10, 3)) :> RouterConfig
-                    spawn mailbox "new-message" { messageMailboxProps with Router = Some router } 
+        let botActor (configuration: BotConfiguration) (mailbox: Actor<_>) =                           
+            let messageActor = 
+                let router = SmallestMailboxPool(10).WithResizer(DefaultResizer(1, 10, 3))
+                let strategy =
+                    fun (exc: Exception) ->
+                        logError mailbox "Actor failed"
+                        logException mailbox exc
+                        Directive.Resume
+                spawnOpt mailbox "new-message" telegramMessageActor 
+                    [SpawnOption.Router(router); SpawnOption.SupervisorStrategy(Strategy.OneForOne(strategy))]
                     
-                let bot = createBot configuration
-                bot.OnMessage |> Event.add (fun args -> messageMailbox <!| (TelegramMessage.parse bot args))
+            let bot = createBot configuration
+            bot.OnMessage |> Event.add (fun args -> messageActor <!| (TelegramMessage.parse bot args))
                 
-                bot.GetMeAsync() 
-                |> Async.AwaitTask 
-                |> Async.Map (fun me -> BotAlive(me.Username)) 
-                |!> mailbox.Self
+            bot.GetMeAsync() 
+            |> Async.AwaitTask 
+            |> Async.Map (fun me -> BotAlive(me.Username)) 
+            |!> mailbox.Self
                 
-                let rec loop () = actor {
-                   let! message = mailbox.Receive()
+            let rec loop () = actor {
+                let! message = mailbox.Receive()
                                  
-                   match message with 
-                   | BotAlive(username) ->
-                       sprintf "Bot username is %s" username |> logInfo mailbox
-                       bot.StartReceiving()
-                       logInfo mailbox "Bot started receiving"
+                match message with 
+                | BotAlive(username) ->
+                    sprintf "Bot username is %s" username |> logInfo mailbox
+                    bot.StartReceiving()
+                    logInfo mailbox "Bot started receiving"
                         
-                   return! loop ()
-                }
-                loop ()
-            |> props
+                return! loop ()
+            }
+            loop ()

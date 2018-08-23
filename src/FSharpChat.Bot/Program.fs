@@ -1,7 +1,7 @@
 ﻿namespace FSharpChat.Bot    
 
 open System
-open Akkling 
+open Akka.FSharp
 open Telegram  
                          
 module Main = 
@@ -19,7 +19,7 @@ module Main =
             let config = Configuration.parse "akka { loglevel=INFO,  loggers=[\"Akka.Logger.Serilog.SerilogLogger, Akka.Logger.Serilog\"]}"       
             use system = System.create "telegram-bot" config
             
-            let botActor = spawn system "bot" (ActorProps.botProps botConfig)
+            let botActor = spawn system "bot" (ActorProps.botActor botConfig)
             
             Console.In.ReadLineAsync().GetAwaiter().GetResult() |> ignore
             
