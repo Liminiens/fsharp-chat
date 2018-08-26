@@ -2,14 +2,14 @@ namespace FSharpChat.Bot
 
 open System
 
-module Images = 
+module Media = 
     open ImageMagick
 
     let getMimeType (data: byte[]) =
         try
-            use image = new MagickImage(data)
-            let format = image.FormatInfo.MimeType
-            Some(format)
+            let formatInfo = 
+                MagickFormatInfo.Create(MagickImageInfo(data).Format)
+            Some(formatInfo.MimeType)
         with
         | :? Exception as e ->
             None
@@ -90,24 +90,30 @@ module Telegram =
                     Error "No bot token found"
             | None -> 
                 Error "Configuration file parsing error"
-                
-    type Chat = { Id: int64; Title: string; Description: string; }
+             
+    type ChatId = ChatId of int64
     
-    type User = { Id: int32; Username: string; FirstName: string; LastName: string; }
+    type UserId = UserId of int
+
+    type Chat = { Id: ChatId; Title: string; Description: string; }
+    
+    type User = { Id: UserId; Username: string; FirstName: string; LastName: string; }
     
     type File = { MimeType: option<string>; Content: byte[] }
       
     type MessageId = MessageId of int
 
     type ReplyToId = ReplyToId of int
-    
+
     type Text = { Value: string; Date: DateTime; }
     
     type Sticker = { Emoji: string; PackName: option<string>; Thumb: File; Sticker: File }
     
-    type Audio = { Performer: option<string>; Title: option<string>; File: File }
+    type Audio = { Performer: option<string>; Title: option<string>; File: File; Caption: option<string> }
 
-    type Document = { FileName: string; File: File; Thumb: option<File> }
+    type Video = { File: File; Thumb: option<File>; Caption: option<string> }
+
+    type Document = { FileName: string; File: File; Thumb: option<File>; Caption: option<string> }
 
     type MessageInfo = { MessageId: MessageId; ReplyToId: option<ReplyToId>; Forwarded: bool; Chat: Chat; User:User }
 
@@ -115,7 +121,7 @@ module Telegram =
         | TextMessage of MessageInfo * Text
         | AudioMessage of MessageInfo * Audio
         | Document of MessageInfo * Document
-        | Video
+        | Video of MessageInfo * Video
         | StickerMessage of MessageInfo * Sticker
         | Photo
         | Voice
@@ -143,17 +149,17 @@ module Telegram =
                         let! chat = 
                             async {
                                 let! chatEntity = 
-                                    bot.GetChatAsync(ChatId(message.Chat.Id)) 
+                                    bot.GetChatAsync(Telegram.Bot.Types.ChatId(message.Chat.Id)) 
                                     |> Async.AwaitTask
 
                                 return 
                                     { Title = message.Chat.Title; 
-                                      Id = message.Chat.Id;
+                                      Id = ChatId(message.Chat.Id);
                                       Description = chatEntity.Description }
                             }                    
 
                         let user = 
-                            { Id = message.From.Id; 
+                            { Id = UserId(message.From.Id); 
                               Username = message.From.Username; 
                               FirstName = message.From.FirstName; 
                               LastName = message.From.LastName }
@@ -180,7 +186,8 @@ module Telegram =
                         let audio = 
                             { Title = Option.ofObj message.Audio.Title; 
                               Performer = Option.ofObj message.Audio.Performer;
-                              File = { MimeType = Option.ofObj message.Audio.MimeType; Content = audioFile } }
+                              File = { MimeType = Option.ofObj message.Audio.MimeType; Content = audioFile };
+                              Caption = Option.ofObj message.Caption }
                         return AudioMessage(messageInfo, audio)
                     | MessageType.Document ->
                         let! documentFile = downloadFile message.Document.FileId
@@ -190,18 +197,37 @@ module Telegram =
                                 async {        
                                     let! thumbFile = downloadFile message.Document.Thumb.FileId
                                     return
-                                        { MimeType = Images.getMimeType thumbFile; Content = thumbFile } |> Some
+                                        { MimeType = Media.getMimeType thumbFile; Content = thumbFile } 
+                                        |> Some
                                 }
                             | false -> 
                                 Async.AsAsync None
                         let document = 
                             { FileName = message.Document.FileName;
-                                Thumb = thumb;
-                                File = { MimeType = Option.ofObj message.Document.MimeType; Content = documentFile } }
+                              Thumb = thumb;
+                              File = { MimeType = Option.ofObj message.Document.MimeType; Content = documentFile };
+                              Caption = Option.ofObj message.Caption }
 
                         return Document(messageInfo, document)
                     | MessageType.Video ->
-                        return Video
+                        let! videoFile = downloadFile message.Video.FileId
+                        let! thumb = 
+                            match isNotNull message.Video.Thumb with
+                            | true ->
+                                async {        
+                                    let! thumbFile = downloadFile message.Video.Thumb.FileId
+                                    return
+                                        { MimeType = Media.getMimeType thumbFile; Content = thumbFile } 
+                                        |> Some
+                                }
+                            | false -> 
+                                Async.AsAsync None
+                            
+                        let video = 
+                            { Thumb = thumb; 
+                              File = { MimeType = Media.getMimeType videoFile; Content = videoFile };
+                              Caption = Option.ofObj message.Caption  }
+                        return Video(messageInfo, video)
                     | MessageType.Sticker ->
                         let! [|thumbFile; stickerFile|] = 
                             [downloadFile message.Sticker.Thumb.FileId; downloadFile message.Sticker.FileId]
@@ -210,8 +236,8 @@ module Telegram =
                         let stickerInfo = 
                             { Emoji = message.Sticker.Emoji;
                               PackName = Option.ofObj message.Sticker.SetName;
-                              Thumb = { MimeType = Images.getMimeType thumbFile; Content = thumbFile };
-                              Sticker = { MimeType = Images.getMimeType stickerFile; Content = stickerFile } }
+                              Thumb = { MimeType = Media.getMimeType thumbFile; Content = thumbFile };
+                              Sticker = { MimeType = Media.getMimeType stickerFile; Content = stickerFile } }
                         return StickerMessage(messageInfo, stickerInfo)
                     | MessageType.Photo ->
                         return Photo
@@ -244,7 +270,7 @@ module Telegram =
                 | AudioMessage(info, message) ->      
                     logInfo mailbox <| sprintf "Size: %i Name: %s" message.File.Content.Length (defaultArg message.Title "")
                 | StickerMessage(info, message) ->
-                    logInfo mailbox message.Emoji
+                    logInfo mailbox  <| sprintf "Emoji: %s; MimeType: %s" message.Emoji (defaultArg message.Sticker.MimeType "")
                 | _ ->
                     ()
                 return! loop ()
@@ -278,7 +304,7 @@ module Telegram =
                                  
                 match message with 
                 | BotAlive(username) ->
-                    sprintf "Bot username is %s" username |> logInfo mailbox
+                    logInfo mailbox <| sprintf "Bot username is %s" username
                     bot.StartReceiving()
                     logInfo mailbox "Bot started receiving"
                         

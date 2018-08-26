@@ -9,6 +9,7 @@ module Main =
 
     [<EntryPoint>]
     let main argv =
+        Console.OutputEncoding <- System.Text.Encoding.UTF8;
         Log.Logger <- Logger.setup    
            
         let configuration = BotConfiguration.load 
