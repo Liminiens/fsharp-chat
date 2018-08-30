@@ -17,10 +17,14 @@ module BotActors =
             | TextMessage(info, message) ->
                 logInfo mailbox message.Value
             | AudioMessage(info, message) ->      
-                logInfo mailbox <| sprintf "Size: %i Name: %s" message.File.Content.Length (defaultArg message.Title "")
+                logInfo mailbox <| sprintf "Audio: Size: %i Name: %s; Size: %i" message.File.Content.Length (defaultArg message.Title "") message.File.Content.Length
             | StickerMessage(info, message) ->
-                logInfo mailbox  <| sprintf "Emoji: %s; MimeType: %s" message.Emoji (defaultArg message.Sticker.MimeType "")
-            | _ ->
+                logInfo mailbox  <| sprintf "Sticker: Emoji: %s; MimeType: %s; Size: %i" message.Emoji (defaultArg message.Sticker.MimeType "") message.Sticker.Content.Length
+            | DocumentMessage(info, message) ->
+                logInfo mailbox  <| sprintf "Document: FileName: %s; MimeType: %s; Size: %i" message.FileName (defaultArg message.File.MimeType "") message.File.Content.Length
+            | VideoMessage(info, message) ->
+                logInfo mailbox  <| sprintf "Video: FileName: %s; MimeType: %s; Size: %i" (defaultArg message.Caption "") (defaultArg message.File.MimeType "") message.File.Content.Length
+            | _ -> 
                 ()
             return! loop ()
         }
