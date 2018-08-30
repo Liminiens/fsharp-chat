@@ -3,16 +3,13 @@ namespace FSharpChat.Bot
 open Serilog
 open Serilog.Exceptions
 open Serilog.Events
-open Serilog.Formatting.Compact
 
 module Logger = 
-    let setup = 
+    let setup logDebug = 
         let loggerConfiguration = new LoggerConfiguration()
         loggerConfiguration
             .MinimumLevel.Debug()
             .Enrich.FromLogContext()
             .Enrich.WithExceptionDetails()
-            .WriteTo.ColoredConsole(LogEventLevel.Debug)
-            (*.WriteTo.Async(fun config -> 
-                config.File(new CompactJsonFormatter(), "./logs/log-.json", rollingInterval = RollingInterval.Day) |> ignore)*)
+            .WriteTo.ColoredConsole(if logDebug then LogEventLevel.Debug else LogEventLevel.Information)
             .CreateLogger() :> ILogger

@@ -2,7 +2,7 @@
 
 open System
 open Akka.FSharp
-open Telegram  
+open FSharpChat.Bot.Telegram  
                          
 module Main = 
     open Serilog
@@ -10,9 +10,9 @@ module Main =
     [<EntryPoint>]
     let main argv =
         Console.OutputEncoding <- System.Text.Encoding.UTF8;
-        Log.Logger <- Logger.setup    
+        Log.Logger <- Logger.setup true   
            
-        let configuration = BotConfiguration.load 
+        let configuration = Configuration.load 
                
         match configuration with 
         | Ok botConfig ->
@@ -20,7 +20,7 @@ module Main =
             let config = Configuration.parse "akka { loglevel=INFO,  loggers=[\"Akka.Logger.Serilog.SerilogLogger, Akka.Logger.Serilog\"]}"       
             use system = System.create "telegram-bot" config
             
-            let botActor = spawn system "bot" (ActorProps.botActor botConfig)
+            let botActor = spawn system "bot" (BotActors.bot botConfig)
             
             Console.In.ReadLineAsync().GetAwaiter().GetResult() |> ignore
             
