@@ -111,8 +111,8 @@ type MessageInfo = { MessageId: MessageId; ReplyToId: option<ReplyToId>; Forward
 type TelegramMessageArgs = 
     | TextMessage of MessageInfo * Text
     | AudioMessage of MessageInfo * Audio
-    | Document of MessageInfo * Document
-    | Video of MessageInfo * Video
+    | DocumentMessage of MessageInfo * Document
+    | VideoMessage of MessageInfo * Video
     | StickerMessage of MessageInfo * Sticker
     | Photo
     | Voice
@@ -174,6 +174,20 @@ type TelegramClient(botConfig: BotConfiguration) =
         
         let message = messageArgs.Message
 
+        let inline getThumbFile (document: ^TContainer) = 
+            let media = (^TContainer: (member Thumb: PhotoSize)(document))
+
+            match isNotNull media with
+            | true ->
+                async {        
+                    let! thumbFile = downloadFile media.FileId
+                    return
+                        { MimeType = Media.getMimeType thumbFile; Content = thumbFile } 
+                        |> Some
+                }
+            | false -> 
+                Async.AsAsync None
+
         async {              
             let! messageInfo = getMessageInfo message                
 
@@ -185,49 +199,28 @@ type TelegramClient(botConfig: BotConfiguration) =
                     let! audioFile = downloadFile message.Audio.FileId
                     let audio = 
                         { Title = Option.ofObj message.Audio.Title; 
-                            Performer = Option.ofObj message.Audio.Performer;
-                            File = { MimeType = Option.ofObj message.Audio.MimeType; Content = audioFile };
-                            Caption = Option.ofObj message.Caption }
+                          Performer = Option.ofObj message.Audio.Performer;
+                          File = { MimeType = Option.ofObj message.Audio.MimeType; Content = audioFile };
+                          Caption = Option.ofObj message.Caption }
                     return AudioMessage(messageInfo, audio)
                 | MessageType.Document ->
                     let! documentFile = downloadFile message.Document.FileId
-                    let! thumb = 
-                        match isNotNull message.Document.Thumb with
-                        | true ->
-                            async {        
-                                let! thumbFile = downloadFile message.Document.Thumb.FileId
-                                return
-                                    { MimeType = Media.getMimeType thumbFile; Content = thumbFile } 
-                                    |> Some
-                            }
-                        | false -> 
-                            Async.AsAsync None
+                    let! thumb = getThumbFile message.Document
                     let document = 
                         { FileName = message.Document.FileName;
-                            Thumb = thumb;
-                            File = { MimeType = Option.ofObj message.Document.MimeType; Content = documentFile };
-                            Caption = Option.ofObj message.Caption }
+                          Thumb = thumb;
+                          File = { MimeType = Option.ofObj message.Document.MimeType; Content = documentFile };
+                          Caption = Option.ofObj message.Caption }
 
-                    return Document(messageInfo, document)
+                    return DocumentMessage(messageInfo, document)
                 | MessageType.Video ->
                     let! videoFile = downloadFile message.Video.FileId
-                    let! thumb = 
-                        match isNotNull message.Video.Thumb with
-                        | true ->
-                            async {        
-                                let! thumbFile = downloadFile message.Video.Thumb.FileId
-                                return
-                                    { MimeType = Media.getMimeType thumbFile; Content = thumbFile } 
-                                    |> Some
-                            }
-                        | false -> 
-                            Async.AsAsync None
-                            
+                    let! thumb = getThumbFile message.Video                          
                     let video = 
                         { Thumb = thumb; 
-                            File = { MimeType = Media.getMimeType videoFile; Content = videoFile };
-                            Caption = Option.ofObj message.Caption  }
-                    return Video(messageInfo, video)
+                          File = { MimeType = Media.getMimeType videoFile; Content = videoFile };
+                          Caption = Option.ofObj message.Caption  }
+                    return VideoMessage(messageInfo, video)
                 | MessageType.Sticker ->
                     let! (thumbFile, stickerFile) = 
                         (downloadFile message.Sticker.Thumb.FileId, downloadFile message.Sticker.FileId)
@@ -235,9 +228,9 @@ type TelegramClient(botConfig: BotConfiguration) =
                             
                     let stickerInfo = 
                         { Emoji = message.Sticker.Emoji;
-                            PackName = Option.ofObj message.Sticker.SetName;
-                            Thumb = { MimeType = Media.getMimeType thumbFile; Content = thumbFile };
-                            Sticker = { MimeType = Media.getMimeType stickerFile; Content = stickerFile } }
+                          PackName = Option.ofObj message.Sticker.SetName;
+                          Thumb = { MimeType = Media.getMimeType thumbFile; Content = thumbFile };
+                          Sticker = { MimeType = Media.getMimeType stickerFile; Content = stickerFile } }
                     return StickerMessage(messageInfo, stickerInfo)
                 | MessageType.Photo ->
                     return Photo
