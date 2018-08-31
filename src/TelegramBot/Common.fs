@@ -7,9 +7,9 @@ module Common =
 
 [<AutoOpen>]
 module Async = 
-    let Map (f: 'T -> 'TResult) (operation: Async<'T>) : Async<'TResult> =
+    let Map (f: 'T -> 'TResult) (op: Async<'T>) : Async<'TResult> =
         async {
-            let! result = operation
+            let! result = op
             return f result
         }
 

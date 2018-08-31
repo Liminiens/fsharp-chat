@@ -10,6 +10,8 @@ open Telegram.Bot.Types.Enums
 open MihaZupan
 open FSharpChat.Bot
 open FSharpChat.Bot.Common
+open Microsoft.FSharp.Core
+open Microsoft.FSharp.Data.UnitSystems.SI.UnitNames
     
 type Socks5Configuration = { Host: string; Port: int; Username: string; Password: string }
     
@@ -106,6 +108,8 @@ type Video = { File: File; Thumb: option<File>; Caption: option<string> }
 
 type Document = { FileName: string; File: File; Thumb: option<File>; Caption: option<string> }
 
+type Voice = { Duration: int<second>; File: File; }
+
 type MessageInfo = { MessageId: MessageId; ReplyToId: option<ReplyToId>; Forwarded: bool; Chat: Chat; User:User }
 
 type TelegramMessageArgs = 
@@ -114,8 +118,8 @@ type TelegramMessageArgs =
     | DocumentMessage of MessageInfo * Document
     | VideoMessage of MessageInfo * Video
     | StickerMessage of MessageInfo * Sticker
-    | Photo
-    | Voice
+    | PhotoMessage of MessageInfo
+    | VoiceMessage of MessageInfo * Voice
     | Skip   
 
 type TelegramClient(botConfig: BotConfiguration) = 
@@ -233,9 +237,19 @@ type TelegramClient(botConfig: BotConfiguration) =
                           Sticker = { MimeType = Media.getMimeType stickerFile; Content = stickerFile } }
                     return StickerMessage(messageInfo, stickerInfo)
                 | MessageType.Photo ->
-                    return Photo
+                    let maxPhotoSize = 
+                        message.Photo 
+                        |> Array.maxBy (fun s -> s.FileSize)
+
+                    let! photoFile = downloadFile maxPhotoSize.FileId
+
+                    return PhotoMessage
                 | MessageType.Voice ->
-                    return Voice
+                    let! voiceFile = downloadFile message.Voice.FileId
+                    let voice = 
+                        { Duration = LanguagePrimitives.Int32WithMeasure message.Voice.Duration;
+                          File = { MimeType = Option.ofObj message.Voice.MimeType; Content = voiceFile } }
+                    return VoiceMessage(messageInfo, voice)
                 | _ -> 
                     return Skip
         }

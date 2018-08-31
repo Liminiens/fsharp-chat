@@ -24,6 +24,8 @@ module BotActors =
                 logInfo mailbox  <| sprintf "Document: FileName: %s; MimeType: %s; Size: %i" message.FileName (defaultArg message.File.MimeType "") message.File.Content.Length
             | VideoMessage(info, message) ->
                 logInfo mailbox  <| sprintf "Video: FileName: %s; MimeType: %s; Size: %i" (defaultArg message.Caption "") (defaultArg message.File.MimeType "") message.File.Content.Length
+            | VoiceMessage(info, message) ->
+                logInfo mailbox  <| sprintf "Voice: Duration: %i seconds; MimeType: %s; Size: %i" message.Duration (defaultArg message.File.MimeType "") message.File.Content.Length
             | _ -> 
                 ()
             return! loop ()
@@ -46,7 +48,7 @@ module BotActors =
                     
         let bot = TelegramClient(configuration)
         bot.OnMessage 
-        |> Event.add (fun args -> messageActor <!| args)
+        |> Event.add (fun args -> args |!> messageActor)
                 
         bot.HealthCheck() 
         |> Async.Map (fun u -> BotAlive(u))
