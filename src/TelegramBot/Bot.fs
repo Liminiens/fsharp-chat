@@ -61,11 +61,16 @@ module BotActors =
             logError mailbox str
 
         let bot = TelegramClient(configuration, logErrorBot)
+
+        let onMessage = 
+            function 
+                | Choice1Of2(message) -> 
+                    message |!> messageActor 
+                | Choice2Of2(editedMessage) -> 
+                    editedMessage |!> messageEditedActor
+
         bot.OnMessage 
-        |> Event.add (function Choice1Of2(message) -> 
-                                message |!> messageActor 
-                             | Choice2Of2(editedMessage) -> 
-                                editedMessage |!> messageEditedActor)
+        |> Event.add onMessage
                 
         bot.HealthCheck() 
         |> Async.Map (fun u -> BotAlive(u))
