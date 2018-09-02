@@ -6,7 +6,7 @@ module Common =
         isNull obj |> not
 
 [<AutoOpen>]
-module Async = 
+module Async =
     let Map (f: 'T -> 'TResult) (op: Async<'T>) : Async<'TResult> =
         async {
             let! result = op

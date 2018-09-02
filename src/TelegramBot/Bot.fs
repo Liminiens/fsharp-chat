@@ -45,10 +45,27 @@ module BotActors =
                     Directive.Resume
             spawnOpt mailbox "new-message" telegramMessageActor 
                 [SpawnOption.Router(router); SpawnOption.SupervisorStrategy(Strategy.OneForOne(strategy))]
-                    
-        let bot = TelegramClient(configuration)
+        
+        let messageEditedActor = 
+            let router = SmallestMailboxPool(10).WithResizer(DefaultResizer(1, 10, 3))
+            let strategy =
+                fun (exc: Exception) ->
+                    logError mailbox "Actor failed"
+                    logException mailbox exc
+                    Directive.Resume
+            spawnOpt mailbox "edited-message" telegramMessageActor 
+                [SpawnOption.Router(router); SpawnOption.SupervisorStrategy(Strategy.OneForOne(strategy))]
+
+        let logErrorBot exc str =
+            logException mailbox exc
+            logError mailbox str
+
+        let bot = TelegramClient(configuration, logErrorBot)
         bot.OnMessage 
-        |> Event.add (fun args -> args |!> messageActor)
+        |> Event.add (function Choice1Of2(message) -> 
+                                message |!> messageActor 
+                             | Choice2Of2(editedMessage) -> 
+                                editedMessage |!> messageEditedActor)
                 
         bot.HealthCheck() 
         |> Async.Map (fun u -> BotAlive(u))
