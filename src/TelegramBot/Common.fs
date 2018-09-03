@@ -13,7 +13,7 @@ module Async =
             return f result
         }
 
-    let AsAsync value : Async<'T> = 
+    let inline AsAsync value : Async<'T> = 
         async.Return(value)
     
     let Parallel2 (op1: Async<'TFirst>, op2: Async<'TSecond>) : Async<('TFirst * 'TSecond)> =

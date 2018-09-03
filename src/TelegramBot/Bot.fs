@@ -19,13 +19,15 @@ module BotActors =
             | AudioMessage(info, message) ->      
                 logInfo mailbox <| sprintf "Audio: Size: %i Name: %s; Size: %i" message.File.Content.Length (defaultArg message.Title "") message.File.Content.Length
             | StickerMessage(info, message) ->
-                logInfo mailbox  <| sprintf "Sticker: Emoji: %s; MimeType: %s; Size: %i" message.Emoji (defaultArg message.Sticker.MimeType "") message.Sticker.Content.Length
+                logInfo mailbox <| sprintf "Sticker: Emoji: %s; Size: %i" message.Emoji  message.Sticker.Content.Length
             | DocumentMessage(info, message) ->
-                logInfo mailbox  <| sprintf "Document: FileName: %s; MimeType: %s; Size: %i" message.FileName (defaultArg message.File.MimeType "") message.File.Content.Length
+                logInfo mailbox <| sprintf "Document: FileName: %s; Size: %i" message.FileName  message.File.Content.Length
             | VideoMessage(info, message) ->
-                logInfo mailbox  <| sprintf "Video: FileName: %s; MimeType: %s; Size: %i" (defaultArg message.Caption "") (defaultArg message.File.MimeType "") message.File.Content.Length
+                logInfo mailbox <| sprintf "Video: FileName: %s;  Size: %i" (defaultArg message.Caption "") message.File.Content.Length
             | VoiceMessage(info, message) ->
-                logInfo mailbox  <| sprintf "Voice: Duration: %i seconds; MimeType: %s; Size: %i" message.Duration (defaultArg message.File.MimeType "") message.File.Content.Length
+                logInfo mailbox <| sprintf "Voice: Duration: %i seconds; Size: %i" message.Duration message.File.Content.Length
+            | PhotoMessage(info, message) ->
+                logInfo mailbox <| sprintf "Photo: Caption: %s seconds; Size: %i" (defaultArg message.Caption "") message.File.Content.Length
             | _ -> 
                 ()
             return! loop ()
@@ -56,11 +58,7 @@ module BotActors =
             spawnOpt mailbox "edited-message" telegramMessageActor 
                 [SpawnOption.Router(router); SpawnOption.SupervisorStrategy(Strategy.OneForOne(strategy))]
 
-        let logErrorBot exc str =
-            logException mailbox exc
-            logError mailbox str
-
-        let bot = TelegramClient(configuration, logErrorBot)
+        let bot = TelegramClient(configuration)
 
         let onMessage = 
             function 

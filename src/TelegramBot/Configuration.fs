@@ -4,7 +4,7 @@ type Socks5Configuration = { Host: string; Port: int; Username: string; Password
     
 type BotConfiguration = { Token: string; Socks5Proxy: Socks5Configuration option }
 
-module Configuration =   
+module BotConfiguration =   
     open System
     open System.IO
     open Microsoft.FSharp.Core

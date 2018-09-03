@@ -23,25 +23,66 @@ type ReplyToId = ReplyToId of int
 
 type BotUsername = BotUsername of string
 
-type Chat = { Id: ChatId; Title: string; Description: string; }
+type Chat = 
+    { Id: ChatId; 
+      Title: string; 
+      Description: string; 
+      Username: option<string>; }
     
-type User = { Id: UserId; Username: string; FirstName: string; LastName: string; }
+type User = 
+    { Id: UserId;
+      Username: string; 
+      FirstName: string; 
+      LastName: string; }
     
-type File = { MimeType: option<string>; Content: byte[] }
+type File = 
+    { Content: byte[]; }
 
-type Text = { Value: string; Date: DateTime; }
+type Text = 
+    { Value: string; Date: DateTime; }
     
-type Sticker = { Emoji: string; PackName: option<string>; Thumb: File; Sticker: File }
+type Sticker = 
+    { Emoji: string; 
+      PackName: option<string>; 
+      Thumb: File; 
+      Sticker: File; }
     
-type Audio = { Performer: option<string>; Title: option<string>; File: File; Caption: option<string> }
+type Audio = 
+    { Performer: option<string>; 
+      Title: option<string>; 
+      File: File; 
+      Caption: option<string>; }
 
-type Video = { File: File; Thumb: option<File>; Caption: option<string> }
+type Video = 
+    { File: File; 
+      Thumb: option<File>; 
+      Caption: option<string>; }
 
-type Document = { FileName: string; File: File; Thumb: option<File>; Caption: option<string> }
+type Document = 
+    { FileName: string; 
+      File: File; 
+      Thumb: option<File>; 
+      Caption: option<string>; }
 
-type Voice = { Duration: int<second>; File: File; }
+type Voice = 
+    { Duration: int<second>; File: File; }
 
-type MessageInfo = { MessageId: MessageId; ReplyToId: option<ReplyToId>; Forwarded: bool; Chat: Chat; User:User }
+type Photo = 
+    { File: File; Caption: option<string>; }
+
+type MessageForwardSource = 
+    | FromChat of Chat
+    | FromUser of User
+
+type MessageInfo = 
+    { MessageId: MessageId; 
+      ReplyToId: option<ReplyToId>; 
+      Forward: option<MessageForwardSource>; 
+      Chat: Chat; 
+      User: User; }
+
+type MessageEditedInfo = 
+    { MessageInfo: MessageInfo; EditDate: DateTime; }
 
 type TelegramMessageEditedArgs =
     T
@@ -52,11 +93,11 @@ type TelegramMessageArgs =
     | DocumentMessage of MessageInfo * Document
     | VideoMessage of MessageInfo * Video
     | StickerMessage of MessageInfo * Sticker
-    | PhotoMessage of MessageInfo
+    | PhotoMessage of MessageInfo * Photo
     | VoiceMessage of MessageInfo * Voice
     | Skip   
 
-type TelegramClient(botConfig: BotConfiguration, errorLogger: exn -> string -> unit) = 
+type TelegramClient(botConfig: BotConfiguration) = 
     let client = 
         match botConfig.Socks5Proxy with 
         | Some proxy ->
@@ -64,8 +105,6 @@ type TelegramClient(botConfig: BotConfiguration, errorLogger: exn -> string -> u
             TelegramBotClient(botConfig.Token, socksProxy)
         | None ->
             TelegramBotClient(botConfig.Token)
-    
-    let errorLogger = errorLogger
 
     let downloadFile fileId = 
         async {
@@ -76,20 +115,21 @@ type TelegramClient(botConfig: BotConfiguration, errorLogger: exn -> string -> u
             return stream.ToArray()
         }
     
-    let getChat (message: Message) = 
+    let getChat (chat: Telegram.Bot.Types.Chat) = 
         async {
             let! chatEntity = 
-                client.GetChatAsync(Telegram.Bot.Types.ChatId(message.Chat.Id)) 
+                client.GetChatAsync(Telegram.Bot.Types.ChatId(chat.Id)) 
                 |> Async.AwaitTask
             return 
-                { Title = message.Chat.Title; 
-                  Id = ChatId(message.Chat.Id);
-                  Description = chatEntity.Description; }
+                { Title = chat.Title; 
+                  Id = ChatId(chat.Id);
+                  Description = chatEntity.Description;
+                  Username = Option.ofObj chat.Username; }
         }
     
     let getMessageInfo (message: Message) =
         async {                                      
-            let! chat = getChat message
+            let! chat = getChat message.Chat
 
             let user = 
                 { Id = UserId(message.From.Id); 
@@ -101,22 +141,36 @@ type TelegramClient(botConfig: BotConfiguration, errorLogger: exn -> string -> u
                 if isNotNull message.ReplyToMessage 
                     then Some(ReplyToId(message.ReplyToMessage.MessageId))
                     else None
+            
+            let! forward = 
+                if isNotNull message.ForwardFromChat then
+                   getChat message.ForwardFromChat
+                   |> Async.Map(fun c -> FromChat(c) |> Some)
+                elif isNotNull message.ForwardFrom then
+                    { Id = UserId(message.ForwardFrom.Id); 
+                        Username = message.ForwardFrom.Username; 
+                        FirstName = message.ForwardFrom.FirstName; 
+                        LastName = message.ForwardFrom.LastName; } 
+                    |> FromUser
+                    |> Some
+                    |> Async.AsAsync
+                else 
+                    Async.AsAsync None
 
             return
                 { MessageId = MessageId(message.MessageId);
                   ReplyToId = replyToId;
-                  Forwarded = isNotNull message.ForwardFrom;
+                  Forward = forward;
                   Chat = chat;
                   User = user }
          }
-
-    let handleMedia fn (data: byte[]) =
-        match fn data with
-        | Ok (result) ->
-            Some result
-        | Error(error, exc) ->
-            errorLogger exc error
-            None
+    
+    let getMessageEditedInfo (message: Message) =
+        async {
+            let! messageInfo = getMessageInfo message
+            let messageEditedInfo = { MessageInfo = messageInfo; EditDate = message.EditDate.Value }
+            return messageEditedInfo
+        }
 
     let readMessage (messageArgs: MessageEventArgs) =      
 
@@ -128,7 +182,7 @@ type TelegramClient(botConfig: BotConfiguration, errorLogger: exn -> string -> u
                 async {        
                     let! thumbFile = downloadFile media.FileId
                     return
-                        { MimeType = handleMedia Media.getMimeType thumbFile; Content = thumbFile } 
+                        { Content = thumbFile } 
                         |> Some
                 }
             | false -> 
@@ -149,7 +203,7 @@ type TelegramClient(botConfig: BotConfiguration, errorLogger: exn -> string -> u
                     let audio = 
                         { Title = Option.ofObj message.Audio.Title; 
                           Performer = Option.ofObj message.Audio.Performer;
-                          File = { MimeType = Option.ofObj message.Audio.MimeType; Content = audioFile };
+                          File = { Content = audioFile };
                           Caption = Option.ofObj message.Caption }
                     return AudioMessage(messageInfo, audio)
                 | MessageType.Document ->
@@ -158,7 +212,7 @@ type TelegramClient(botConfig: BotConfiguration, errorLogger: exn -> string -> u
                     let document = 
                         { FileName = message.Document.FileName;
                           Thumb = thumbFile;
-                          File = { MimeType = Option.ofObj message.Document.MimeType; Content = documentFile };
+                          File = { Content = documentFile };
                           Caption = Option.ofObj message.Caption }
 
                     return DocumentMessage(messageInfo, document)
@@ -167,7 +221,7 @@ type TelegramClient(botConfig: BotConfiguration, errorLogger: exn -> string -> u
                     let! thumbFile = getThumbFile message.Video                          
                     let video = 
                         { Thumb = thumbFile; 
-                          File = { MimeType = handleMedia Media.getMimeType videoFile; Content = videoFile };
+                          File = { Content = videoFile };
                           Caption = Option.ofObj message.Caption  }
                     return VideoMessage(messageInfo, video)
                 | MessageType.Sticker ->
@@ -178,25 +232,22 @@ type TelegramClient(botConfig: BotConfiguration, errorLogger: exn -> string -> u
                     let stickerInfo = 
                         { Emoji = message.Sticker.Emoji;
                           PackName = Option.ofObj message.Sticker.SetName;
-                          Thumb = { MimeType = handleMedia Media.getMimeType thumbFile; Content = thumbFile };
-                          Sticker = { MimeType = handleMedia Media.getMimeType stickerFile; Content = stickerFile } }
+                          Thumb = { Content = thumbFile };
+                          Sticker = { Content = stickerFile } }
                     return StickerMessage(messageInfo, stickerInfo)
                 | MessageType.Photo ->
                     let maxPhotoSize = 
                         message.Photo 
-                        |> Array.maxBy (fun s -> s.FileSize)
-                    
-
+                        |> Array.maxBy (fun s -> s.FileSize)                    
                     let! photoFile = downloadFile maxPhotoSize.FileId
 
-                    let smallPhoto = Media.resize (480, 360) photoFile
-
-                    return PhotoMessage(messageInfo)
+                    let photoInfo = { File = { Content = photoFile }; Caption = Option.ofObj message.Caption }
+                    return PhotoMessage(messageInfo, photoInfo)
                 | MessageType.Voice ->
                     let! voiceFile = downloadFile message.Voice.FileId
                     let voice = 
                         { Duration = LanguagePrimitives.Int32WithMeasure message.Voice.Duration;
-                          File = { MimeType = Option.ofObj message.Voice.MimeType; Content = voiceFile } }
+                          File = { Content = voiceFile } }
                     return VoiceMessage(messageInfo, voice)
                 | _ -> 
                     return Skip
@@ -205,6 +256,7 @@ type TelegramClient(botConfig: BotConfiguration, errorLogger: exn -> string -> u
     let readEditedMessage (messageArgs: MessageEventArgs)= 
         async {
             let message = messageArgs.Message
+            let! messageInfo = getMessageEditedInfo message
             return T
         }
 
