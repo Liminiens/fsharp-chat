@@ -85,8 +85,20 @@ type MessageInfo =
 type MessageEditedInfo = 
     { MessageInfo: MessageInfo; EditDate: DateTime; }
 
+type EditedText = { Text: string }
+
+type EditedPhoto = { Caption: string }
+
+type EditedAudio = { Caption: string }
+
+type EditedDocument = { Caption: string }
+
 type TelegramMessageEditedArgs =
-    T
+    | TextMessageEdited of MessageEditedInfo * EditedText
+    | PhotoMessageEdited of MessageEditedInfo * EditedPhoto
+    | AudioMessageEdited of MessageEditedInfo * EditedAudio
+    | DocumentMessageEdited of MessageEditedInfo * EditedDocument
+    | SkipEdit
 
 type TelegramMessageArgs = 
     | TextMessage of MessageInfo * Text
@@ -98,7 +110,7 @@ type TelegramMessageArgs =
     | VoiceMessage of MessageInfo * Voice
     | ChatMemberLeft of MessageInfo * User
     | ChatMembersAdded of MessageInfo * list<User>
-    | Skip   
+    | SkipMessage   
 
 type TelegramClient(botConfig: BotConfiguration) = 
     let client = 
@@ -241,7 +253,6 @@ type TelegramClient(botConfig: BotConfiguration) =
                         message.Photo 
                         |> Array.maxBy (fun s -> s.FileSize)                    
                     let! photoFile = downloadFile maxPhotoSize.FileId
-
                     let photoInfo = { File = { Content = photoFile }; Caption = Option.ofObj message.Caption }
                     return PhotoMessage(messageInfo, photoInfo)
                 | MessageType.Voice ->
@@ -260,14 +271,29 @@ type TelegramClient(botConfig: BotConfiguration) =
                         |> List.map getUser
                     return ChatMembersAdded(messageInfo, users)
                 | _ -> 
-                    return Skip
+                    return SkipMessage
         }
     
-    let readEditedMessage (messageArgs: MessageEventArgs)= 
+    let readEditedMessage (messageArgs: MessageEventArgs) = 
         async {
             let message = messageArgs.Message
             let! messageInfo = getMessageEditedInfo message
-            return T
+
+            match message.Type with 
+            | MessageType.Text ->
+                let text = message.Text
+                return TextMessageEdited(messageInfo, { Text = text })
+            | MessageType.Audio ->
+                let caption = message.Caption
+                return AudioMessageEdited(messageInfo, { Caption = caption })
+            | MessageType.Photo ->
+                let caption = message.Caption
+                return PhotoMessageEdited(messageInfo, { Caption = caption })
+            | MessageType.Document ->
+                let caption = message.Caption
+                return DocumentMessageEdited(messageInfo, { Caption = caption })
+            | _ ->
+                return SkipEdit
         }
 
     member this.StartReceiving() =
