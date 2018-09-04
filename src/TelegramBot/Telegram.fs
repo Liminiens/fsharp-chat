@@ -32,8 +32,9 @@ type Chat =
 type User = 
     { Id: UserId;
       Username: string; 
-      FirstName: string; 
-      LastName: string; }
+      IsBot: bool;
+      FirstName: option<string>;
+      LastName: option<string>; }
     
 type File = 
     { Content: byte[]; }
@@ -95,6 +96,8 @@ type TelegramMessageArgs =
     | StickerMessage of MessageInfo * Sticker
     | PhotoMessage of MessageInfo * Photo
     | VoiceMessage of MessageInfo * Voice
+    | ChatMemberLeft of MessageInfo * User
+    | ChatMembersAdded of MessageInfo * list<User>
     | Skip   
 
 type TelegramClient(botConfig: BotConfiguration) = 
@@ -115,6 +118,13 @@ type TelegramClient(botConfig: BotConfiguration) =
             return stream.ToArray()
         }
     
+    let getUser (user: Telegram.Bot.Types.User) = 
+        { Id = UserId(user.Id); 
+          Username = user.Username;
+          IsBot = user.IsBot;
+          FirstName = Option.ofObj user.FirstName; 
+          LastName = Option.ofObj user.LastName; }
+
     let getChat (chat: Telegram.Bot.Types.Chat) = 
         async {
             let! chatEntity = 
@@ -130,12 +140,7 @@ type TelegramClient(botConfig: BotConfiguration) =
     let getMessageInfo (message: Message) =
         async {                                      
             let! chat = getChat message.Chat
-
-            let user = 
-                { Id = UserId(message.From.Id); 
-                  Username = message.From.Username; 
-                  FirstName = message.From.FirstName; 
-                  LastName = message.From.LastName; }
+            let user = getUser message.From
                 
             let replyToId = 
                 if isNotNull message.ReplyToMessage 
@@ -147,10 +152,7 @@ type TelegramClient(botConfig: BotConfiguration) =
                    getChat message.ForwardFromChat
                    |> Async.Map(fun c -> FromChat(c) |> Some)
                 elif isNotNull message.ForwardFrom then
-                    { Id = UserId(message.ForwardFrom.Id); 
-                        Username = message.ForwardFrom.Username; 
-                        FirstName = message.ForwardFrom.FirstName; 
-                        LastName = message.ForwardFrom.LastName; } 
+                    getUser message.ForwardFrom
                     |> FromUser
                     |> Some
                     |> Async.AsAsync
@@ -214,7 +216,6 @@ type TelegramClient(botConfig: BotConfiguration) =
                           Thumb = thumbFile;
                           File = { Content = documentFile };
                           Caption = Option.ofObj message.Caption }
-
                     return DocumentMessage(messageInfo, document)
                 | MessageType.Video ->
                     let! videoFile = downloadFile message.Video.FileId
@@ -249,6 +250,15 @@ type TelegramClient(botConfig: BotConfiguration) =
                         { Duration = LanguagePrimitives.Int32WithMeasure message.Voice.Duration;
                           File = { Content = voiceFile } }
                     return VoiceMessage(messageInfo, voice)
+                | MessageType.ChatMemberLeft ->
+                    let user = getUser message.LeftChatMember
+                    return ChatMemberLeft(messageInfo, user)
+                | MessageType.ChatMembersAdded ->
+                    let users = 
+                        message.NewChatMembers 
+                        |> List.ofArray 
+                        |> List.map getUser
+                    return ChatMembersAdded(messageInfo, users)
                 | _ -> 
                     return Skip
         }
@@ -261,7 +271,7 @@ type TelegramClient(botConfig: BotConfiguration) =
         }
 
     member this.StartReceiving() =
-        client.StartReceiving([|UpdateType.Message; UpdateType.EditedMessage|])
+        client.StartReceiving([|UpdateType.Message; UpdateType.EditedMessage;|])
     
     member this.HealthCheck() = 
         client.GetMeAsync() 
