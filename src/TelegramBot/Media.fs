@@ -1,5 +1,5 @@
-﻿namespace FSharpChat.Bot
-
+﻿#nowarn "0067"
+namespace FSharpChat.Bot
 open System
 
 module Media = 
@@ -8,7 +8,7 @@ module Media =
     open SixLabors.ImageSharp.Processing
     open SixLabors.ImageSharp.Formats.Jpeg
     open ImageMagick
-
+    
     let getMimeType (data: byte[]) =
         try
             let formatInfo = 
