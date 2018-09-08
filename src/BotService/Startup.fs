@@ -23,7 +23,8 @@ type Startup private () =
         let config = Configuration.parse "akka { loglevel=INFO,  loggers=[\"Akka.Logger.Serilog.SerilogLogger, Akka.Logger.Serilog\"]}"       
         services.AddSingleton(System.create "telegram-bot" config) |> ignore
         services.AddHostedService<ActorSystemService>() |> ignore
-        services.AddOptions<BotConfigurationOptions>() |> ignore
+        services.AddOptions() |> ignore
+        services.Configure<BotConfigurationOptions>(this.Configuration.GetSection("BotConfigurationOptions")) |> ignore
 
     // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
     member this.Configure(app: IApplicationBuilder, env: IHostingEnvironment) =

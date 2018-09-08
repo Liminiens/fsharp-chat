@@ -20,23 +20,10 @@ type BotConfigurationOptions() =
 
 module BotConfiguration =   
     open System
-    open System.IO
-    open Microsoft.FSharp.Core
-    open System.Reflection
-    open Microsoft.Extensions.Configuration      
+    open Microsoft.FSharp.Core  
 
-    let load configuration =
-        let isEmpty str = String.IsNullOrWhiteSpace(str)
-                     
-        let configuration = 
-            let builder = 
-                ConfigurationBuilder()
-                    .SetBasePath(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location))
-                    .AddJsonFile("botconfig.json")
-                    .Build()
-            let settings = BotConfigurationOptions()
-            builder.GetSection("Settings").Bind(settings)
-            settings |> Option.ofObj    
+    let load (configuration: BotConfigurationOptions) =
+        let isEmpty str = String.IsNullOrWhiteSpace(str)                      
             
         let (|Valid|TokenEmpty|) token =
             if not <| isEmpty token then Valid else TokenEmpty
@@ -55,26 +42,23 @@ module BotConfiguration =
                 if settings |> List.distinct |> List.length > 1 then 
                     ProxyConfigurationError else WithoutProxy
                                    
-        match configuration with
-        | Some(conf)  ->
-            match conf.Token with
-            | Valid ->
-                match conf.Socks5Host, conf.Socks5Port, conf.Socks5Username, conf.Socks5Password with
-                | WithProxy ->
-                    let proxy = 
-                        { Host = conf.Socks5Host; 
-                            Port = int conf.Socks5Port; 
-                            Username = conf.Socks5Username; 
-                            Password = conf.Socks5Password }
-                    { Token = conf.Token; Socks5Proxy = Some proxy } 
-                    |> Ok
-                | WithoutProxy ->
-                    { Token = conf.Token; Socks5Proxy = None }
-                    |> Ok
-                | ProxyConfigurationError ->
-                    Error "Error in proxy configuration"
-            | TokenEmpty ->
-                Error "No bot token found"
-        | None -> 
-            Error "Configuration file parsing error"
+        
+        match configuration.Token with
+        | Valid ->
+            match configuration.Socks5Host, configuration.Socks5Port, configuration.Socks5Username, configuration.Socks5Password with
+            | WithProxy ->
+                let proxy = 
+                    { Host = configuration.Socks5Host; 
+                        Port = int configuration.Socks5Port; 
+                        Username = configuration.Socks5Username; 
+                        Password = configuration.Socks5Password }
+                { Token = configuration.Token; Socks5Proxy = Some proxy } 
+                |> Ok
+            | WithoutProxy ->
+                { Token = configuration.Token; Socks5Proxy = None }
+                |> Ok
+            | ProxyConfigurationError ->
+                Error "Error in proxy configuration"
+        | TokenEmpty ->
+            Error "No bot token found"
 
