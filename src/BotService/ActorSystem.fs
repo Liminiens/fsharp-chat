@@ -9,9 +9,21 @@ open Akka.Actor
 open BotService
 open BotService.Telegram
 open BotService.Extensions
-open Microsoft.Extensions.Hosting        
-open Microsoft.Extensions.Logging
-open Microsoft.Extensions.Options
+
+[<AutoOpen>]
+module Logging = 
+    open Akka.Logger.Serilog
+
+    let private getLogger (mailbox: Actor<_>) =
+        mailbox.Context.GetLogger<SerilogLoggingAdapter>()
+
+    let logInfoMessage mailbox message = 
+        let logger = getLogger mailbox
+        logger.Info(message)
+
+    let logInfoFormatted mailbox message ([<ParamArray>] args: obj[]) = 
+        let logger = getLogger mailbox
+        logger.Info(message, args)
 
 module BotProps =  
     open Akka
@@ -22,19 +34,19 @@ module BotProps =
             let! message = mailbox.Receive()
             match message with
             | TextMessage(info, message) ->
-                logInfo mailbox message.Value
+                logInfoMessage mailbox message.Value
             | AudioMessage(info, message) ->      
-                logInfo mailbox <| sprintf "Audio: Size: %i Name: %s; Size: %i" message.File.Content.Length (defaultArg message.Title "") message.File.Content.Length
+                logInfoMessage mailbox <| sprintf "Audio: Size: %i Name: %s; Size: %i" message.File.Content.Length (defaultArg message.Title "") message.File.Content.Length
             | StickerMessage(info, message) ->
-                logInfo mailbox <| sprintf "Sticker: Emoji: %s; Size: %i" message.Emoji  message.Sticker.Content.Length
+                logInfoMessage mailbox <| sprintf "Sticker: Emoji: %s; Size: %i" message.Emoji  message.Sticker.Content.Length
             | DocumentMessage(info, message) ->
-                logInfo mailbox <| sprintf "Document: FileName: %s; Size: %i" message.FileName  message.File.Content.Length
+                logInfoMessage mailbox <| sprintf "Document: FileName: %s; Size: %i" message.FileName  message.File.Content.Length
             | VideoMessage(info, message) ->
-                logInfo mailbox <| sprintf "Video: FileName: %s;  Size: %i" (defaultArg message.Caption "") message.File.Content.Length
+                logInfoMessage mailbox <| sprintf "Video: FileName: %s;  Size: %i" (defaultArg message.Caption "") message.File.Content.Length
             | VoiceMessage(info, message) ->
-                logInfo mailbox <| sprintf "Voice: Duration: %i seconds; Size: %i" message.Duration message.File.Content.Length
+                logInfoMessage mailbox <| sprintf "Voice: Duration: %i seconds; Size: %i" message.Duration message.File.Content.Length
             | PhotoMessage(info, message) ->
-                logInfo mailbox <| sprintf "Photo: Caption: %s seconds; Size: %i" (defaultArg message.Caption "") message.File.Content.Length
+                logInfoMessage mailbox <| sprintf "Photo: Caption: %s seconds; Size: %i" (defaultArg message.Caption "") message.File.Content.Length
             | _ -> 
                 ()
             return! loop ()
@@ -93,6 +105,10 @@ module BotProps =
             return! loop ()
         }
         loop ()
+
+open Microsoft.Extensions.Hosting        
+open Microsoft.Extensions.Logging
+open Microsoft.Extensions.Options
 
 type ActorSystemService(configuration: IOptions<BotConfigurationOptions>, system: ActorSystem, logger: ILogger<ActorSystemService>) = 
     inherit BackgroundService()

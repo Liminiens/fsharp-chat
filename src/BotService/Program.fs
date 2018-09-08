@@ -12,6 +12,7 @@ module Logger =
     let setup = 
         let loggerConfiguration = new LoggerConfiguration()
         loggerConfiguration
+            .Destructure.FSharpTypes()
             .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
             .MinimumLevel.Debug()
             .Enrich.FromLogContext()
@@ -31,7 +32,7 @@ module Program =
         WebHost
             .CreateDefaultBuilder(args)
             .UseKestrel()
-            .UseSerilog()
+            .UseSerilog(Log.Logger)
             .ConfigureAppConfiguration(configureBotSettingsFile)
             .UseStartup<Startup>();
 
