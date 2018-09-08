@@ -1,25 +1,31 @@
-﻿namespace FSharpChat.Bot
+﻿namespace BotService
 
-type Socks5Configuration = { Host: string; Port: int; Username: string; Password: string }
+type Socks5Configuration = 
+    { Host: string; 
+      Port: int; 
+      Username: string; 
+      Password: string; }
     
-type BotConfiguration = { Token: string; Socks5Proxy: Socks5Configuration option }
+type BotConfiguration = 
+    { Token: string; 
+      Socks5Proxy: option<Socks5Configuration> }
+
+[<AllowNullLiteral>]
+type BotConfigurationOptions() =
+    member val Token = "" with get, set
+    member val Socks5Host = "" with get, set
+    member val Socks5Port = "" with get, set 
+    member val Socks5Username = "" with get, set  
+    member val Socks5Password = "" with get, set
 
 module BotConfiguration =   
     open System
     open System.IO
     open Microsoft.FSharp.Core
     open System.Reflection
-    open Microsoft.Extensions.Configuration
+    open Microsoft.Extensions.Configuration      
 
-    [<AllowNullLiteral>]
-    type BotConfigurationJson() =
-            member val Token = "" with get, set
-            member val Socks5Host = "" with get, set
-            member val Socks5Port = "" with get, set 
-            member val Socks5Username = "" with get, set  
-            member val Socks5Password = "" with get, set      
-
-    let load =
+    let load configuration =
         let isEmpty str = String.IsNullOrWhiteSpace(str)
                      
         let configuration = 
@@ -28,7 +34,7 @@ module BotConfiguration =
                     .SetBasePath(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location))
                     .AddJsonFile("botconfig.json")
                     .Build()
-            let settings = BotConfigurationJson()
+            let settings = BotConfigurationOptions()
             builder.GetSection("Settings").Bind(settings)
             settings |> Option.ofObj    
             

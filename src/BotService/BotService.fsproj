@@ -7,9 +7,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Extensions.fs" />
     <Compile Include="Logging.fs" />
-    <Compile Include="Common.fs" />
-    <Compile Include="Controllers/ValuesController.fs" />
+    <Compile Include="Media.fs" />
+    <Compile Include="Configuration.fs" />
+    <Compile Include="Telegram.fs" />
+    <Compile Include="Bot.fs" />
+    <Compile Include="ActorSystem.fs" />
+    <Compile Include="ValuesController.fs" />
     <Compile Include="Startup.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

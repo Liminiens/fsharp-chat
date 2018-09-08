@@ -12,6 +12,7 @@ module Program =
     let CreateWebHostBuilder args =
         WebHost
             .CreateDefaultBuilder(args)
+            .UseKestrel()
             .UseSerilog()
             .UseStartup<Startup>();
 

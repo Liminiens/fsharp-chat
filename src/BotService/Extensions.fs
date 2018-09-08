@@ -26,3 +26,17 @@ module Async =
 
             return (firstOpResult, secondOpResult)
         }
+ 
+ [<AutoOpen>]
+ module Action =
+    open System
+
+    let inline actionOf1 f = 
+        Action<_>(f)
+
+[<AutoOpen>]
+module Func =
+    open System
+
+    let inline funcOf1 f = 
+        Func<_,_>(f)

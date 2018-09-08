@@ -1,8 +1,9 @@
 namespace FSharpChat.Bot
 
 open System
-open FSharpChat.Bot.Telegram
-open FSharpChat.Bot.Common
+open BotService
+open BotService.Extensions
+open BotService.Telegram
 
 module BotActors =  
     open Akka

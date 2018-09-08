@@ -1,4 +1,4 @@
-﻿namespace FSharpChat.Bot.Telegram    
+﻿namespace BotService.Telegram    
 
 open System
 open System.Net
@@ -8,8 +8,8 @@ open Telegram.Bot.Args
 open Telegram.Bot.Types
 open Telegram.Bot.Types.Enums
 open MihaZupan
-open FSharpChat.Bot
-open FSharpChat.Bot.Common
+open BotService
+open BotService.Extensions
 open Microsoft.FSharp.Core
 open Microsoft.FSharp.Data.UnitSystems.SI.UnitNames  
 
@@ -121,7 +121,7 @@ type TelegramClient(botConfig: BotConfiguration) =
         | None ->
             TelegramBotClient(botConfig.Token)
 
-    let downloadFile fileId = 
+    let downloadFile fileId : Async<byte[]> = 
         async {
             let stream = new MemoryStream()
             do! client.GetInfoAndDownloadFileAsync(fileId, stream) 
@@ -130,14 +130,14 @@ type TelegramClient(botConfig: BotConfiguration) =
             return stream.ToArray()
         }
     
-    let getUser (user: Telegram.Bot.Types.User) = 
+    let getUser (user: Telegram.Bot.Types.User) : User = 
         { Id = UserId(user.Id); 
           Username = user.Username;
           IsBot = user.IsBot;
           FirstName = Option.ofObj user.FirstName; 
           LastName = Option.ofObj user.LastName; }
 
-    let getChat (chat: Telegram.Bot.Types.Chat) = 
+    let getChat (chat: Telegram.Bot.Types.Chat) : Async<Chat> = 
         async {
             let! chatEntity = 
                 client.GetChatAsync(Telegram.Bot.Types.ChatId(chat.Id)) 
@@ -149,7 +149,7 @@ type TelegramClient(botConfig: BotConfiguration) =
                   Username = Option.ofObj chat.Username; }
         }
     
-    let getMessageInfo (message: Message) =
+    let getMessageInfo (message: Message) : Async<MessageInfo> =
         async {                                      
             let! chat = getChat message.Chat
             let user = getUser message.From
@@ -179,16 +179,16 @@ type TelegramClient(botConfig: BotConfiguration) =
                   User = user }
          }
     
-    let getMessageEditedInfo (message: Message) =
+    let getMessageEditedInfo (message: Message) : Async<MessageEditedInfo> =
         async {
             let! messageInfo = getMessageInfo message
             let messageEditedInfo = { MessageInfo = messageInfo; EditDate = message.EditDate.Value }
             return messageEditedInfo
         }
 
-    let readMessage (messageArgs: MessageEventArgs) =      
+    let readMessage (messageArgs: MessageEventArgs) : Async<TelegramMessageArgs> =      
 
-        let inline getThumbFile (document: ^TContainer) = 
+        let inline getThumbFile (document: ^TContainer) : Async<Option<File>> = 
             let media = (^TContainer: (member Thumb: PhotoSize)(document))
 
             match isNotNull media with
@@ -274,7 +274,7 @@ type TelegramClient(botConfig: BotConfiguration) =
                     return SkipMessage
         }
     
-    let readEditedMessage (messageArgs: MessageEventArgs) = 
+    let readEditedMessage (messageArgs: MessageEventArgs) : Async<TelegramMessageEditedArgs> = 
         async {
             let message = messageArgs.Message
             let! messageInfo = getMessageEditedInfo message
@@ -296,10 +296,10 @@ type TelegramClient(botConfig: BotConfiguration) =
                 return SkipEdit
         }
 
-    member this.StartReceiving() =
+    member this.StartReceiving() : unit =
         client.StartReceiving([|UpdateType.Message; UpdateType.EditedMessage;|])
     
-    member this.HealthCheck() = 
+    member this.HealthCheck() : Async<BotUsername> = 
         client.GetMeAsync() 
         |> Async.AwaitTask 
         |> Async.Map (fun u -> BotUsername(u.Username))
