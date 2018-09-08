@@ -11,7 +11,6 @@
     <Compile Include="Media.fs" />
     <Compile Include="Configuration.fs" />
     <Compile Include="Telegram.fs" />
-    <Compile Include="Bot.fs" />
     <Compile Include="ActorSystem.fs" />
     <Compile Include="ValuesController.fs" />
     <Compile Include="Startup.fs" />
