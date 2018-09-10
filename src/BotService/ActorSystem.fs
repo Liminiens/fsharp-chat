@@ -17,10 +17,6 @@ module Logging =
     let private getLogger (mailbox: Actor<_>) =
         mailbox.Context.GetLogger<SerilogLoggingAdapter>()
 
-    let logInfoMessage mailbox message = 
-        let logger = getLogger mailbox
-        logger.Info(message)
-
     let logInfoFormatted mailbox message ([<ParamArray>] args: obj[]) = 
         let logger = getLogger mailbox
         logger.Info(message, args)
@@ -34,19 +30,19 @@ module BotProps =
             let! message = mailbox.Receive()
             match message with
             | TextMessage(info, message) ->
-                logInfoMessage mailbox message.Value
+                logInfo mailbox message.Value
             | AudioMessage(info, message) ->      
-                logInfoMessage mailbox <| sprintf "Audio: Size: %i Name: %s; Size: %i" message.File.Content.Length (defaultArg message.Title "") message.File.Content.Length
+                logInfo mailbox <| sprintf "Audio: Size: %i Name: %s; Size: %i" message.File.Content.Length (defaultArg message.Title "") message.File.Content.Length
             | StickerMessage(info, message) ->
-                logInfoMessage mailbox <| sprintf "Sticker: Emoji: %s; Size: %i" message.Emoji  message.Sticker.Content.Length
+                logInfo mailbox <| sprintf "Sticker: Emoji: %s; Size: %i" message.Emoji  message.Sticker.Content.Length
             | DocumentMessage(info, message) ->
-                logInfoMessage mailbox <| sprintf "Document: FileName: %s; Size: %i" message.FileName  message.File.Content.Length
+                logInfo mailbox <| sprintf "Document: FileName: %s; Size: %i" message.FileName  message.File.Content.Length
             | VideoMessage(info, message) ->
-                logInfoMessage mailbox <| sprintf "Video: FileName: %s;  Size: %i" (defaultArg message.Caption "") message.File.Content.Length
+                logInfo mailbox <| sprintf "Video: FileName: %s;  Size: %i" (defaultArg message.Caption "") message.File.Content.Length
             | VoiceMessage(info, message) ->
-                logInfoMessage mailbox <| sprintf "Voice: Duration: %i seconds; Size: %i" message.Duration message.File.Content.Length
+                logInfo mailbox <| sprintf "Voice: Duration: %i seconds; Size: %i" message.Duration message.File.Content.Length
             | PhotoMessage(info, message) ->
-                logInfoMessage mailbox <| sprintf "Photo: Caption: %s seconds; Size: %i" (defaultArg message.Caption "") message.File.Content.Length
+                logInfo mailbox <| sprintf "Photo: Caption: %s seconds; Size: %i" (defaultArg message.Caption "") message.File.Content.Length
             | _ -> 
                 ()
             return! loop ()
