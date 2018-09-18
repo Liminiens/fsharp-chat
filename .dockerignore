@@ -1,0 +1,8 @@
+/.git
+/.idea
+/.vs
+
+# Build results
+**/*/obj
+**/*/bin
+**/*/node_modules
