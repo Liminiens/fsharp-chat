@@ -7,7 +7,9 @@ open Microsoft.AspNetCore.Mvc
 open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.DependencyInjection
 open Akka.FSharp
+open FluentMigrator.Runner
 open BotService.Actors
+open BotService.Migrations
 
 type Startup private () =
     new (configuration: IConfiguration) as this =
@@ -15,7 +17,7 @@ type Startup private () =
         this.Configuration <- configuration
 
     // This method gets called by the runtime. Use this method to add services to the container.
-    member this.ConfigureServices(services: IServiceCollection) =
+    member this.ConfigureServices(services: IServiceCollection) : unit =
         // Add framework services.
         services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1) |> ignore
         services.AddRouting(fun opt -> opt.LowercaseUrls <- true) |> ignore
@@ -25,9 +27,25 @@ type Startup private () =
         services.AddHostedService<ActorSystemService>() |> ignore
         services.AddOptions() |> ignore
         services.Configure<BotConfigurationOptions>(this.Configuration.GetSection("BotConfigurationOptions")) |> ignore
+        
+        let connectionString = this.Configuration.GetSection("ChatConnectionString").Value
+
+        services.AddFluentMigratorCore()
+            .ConfigureRunner(
+                fun run -> 
+                    let assembly = typeof<MigrationAssemblyMarker>.Assembly
+                    run.AddPostgres().WithGlobalConnectionString(connectionString).ScanIn(assembly) |> ignore) 
+            |> ignore
 
     // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-    member this.Configure(app: IApplicationBuilder, env: IHostingEnvironment) =
+    member this.Configure(app: IApplicationBuilder, env: IHostingEnvironment) : unit =
+        let migrateUp() = 
+            use serviceScope = app.ApplicationServices.CreateScope()
+            let runner = serviceScope.ServiceProvider.GetRequiredService<IMigrationRunner>()
+            runner.MigrateUp()
+        
+        migrateUp()
+
         if (env.IsDevelopment()) then
             app.UseDeveloperExceptionPage() |> ignore
 

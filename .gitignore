@@ -6,6 +6,9 @@
 #config
 botconfig.json
 
+#output
+publish/
+
 # User-specific files
 *.suo
 *.user
