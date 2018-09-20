@@ -75,7 +75,7 @@ module BotProps =
 
         let bot = TelegramClient(configuration)
 
-        let onMessage = 
+        let onMessage : Choice<Async<TelegramMessageArgs>, Async<TelegramMessageEditedArgs>> -> unit = 
             function 
                 | Choice1Of2(message) -> 
                     message |!> messageActor 

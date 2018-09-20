@@ -37,10 +37,11 @@ type User =
       LastName: option<string>; }
     
 type File = 
-    { Content: byte[]; }
+    { Content: byte[];
+      Caption: option<string>; }
 
 type Text = 
-    { Value: string; Date: DateTime; }
+    { Value: string; }
     
 type Sticker = 
     { Emoji: string; 
@@ -51,25 +52,22 @@ type Sticker =
 type Audio = 
     { Performer: option<string>; 
       Title: option<string>; 
-      File: File; 
-      Caption: option<string>; }
+      File: File;  }
 
 type Video = 
     { File: File; 
-      Thumb: option<File>; 
-      Caption: option<string>; }
+      Thumb: option<File>; }
 
 type Document = 
     { FileName: string; 
       File: File; 
-      Thumb: option<File>; 
-      Caption: option<string>; }
+      Thumb: option<File>; }
 
 type Voice = 
     { Duration: int<second>; File: File; }
 
 type Photo = 
-    { File: File; Caption: option<string>; }
+    { File: File; }
 
 type MessageForwardSource = 
     | FromChat of Chat
@@ -80,7 +78,8 @@ type MessageInfo =
       ReplyToId: option<ReplyToId>; 
       Forward: option<MessageForwardSource>; 
       Chat: Chat; 
-      User: User; }
+      User: User; 
+      Date: DateTime; }
 
 type MessageEditedInfo = 
     { MessageInfo: MessageInfo; EditDate: DateTime; }
@@ -108,8 +107,8 @@ type TelegramMessageArgs =
     | StickerMessage of MessageInfo * Sticker
     | PhotoMessage of MessageInfo * Photo
     | VoiceMessage of MessageInfo * Voice
-    | ChatMemberLeft of MessageInfo * User
-    | ChatMembersAdded of MessageInfo * list<User>
+    | ChatMemberLeftMessage of MessageInfo * User
+    | ChatMembersAddedMessage of MessageInfo * list<User>
     | SkipMessage   
 
 type TelegramClient(botConfig: BotConfiguration) = 
@@ -175,6 +174,7 @@ type TelegramClient(botConfig: BotConfiguration) =
                 { MessageId = MessageId(message.MessageId);
                   ReplyToId = replyToId;
                   Forward = forward;
+                  Date = message.Date;
                   Chat = chat;
                   User = user }
          }
@@ -195,8 +195,8 @@ type TelegramClient(botConfig: BotConfiguration) =
             | true ->
                 async {        
                     let! thumbFile = downloadFile media.FileId
-                    return
-                        { Content = thumbFile } 
+                    return 
+                        { Content = thumbFile; Caption = None; } 
                         |> Some
                 }
             | false -> 
@@ -204,21 +204,19 @@ type TelegramClient(botConfig: BotConfiguration) =
 
         let message = messageArgs.Message  
         
-        async {              
-            
+        async {                        
             let! messageInfo = getMessageInfo message                
 
             match message.Type with 
                 | MessageType.Text -> 
-                    let text = { Value = message.Text; Date = message.Date }
+                    let text = { Value = message.Text; }
                     return TextMessage(messageInfo, text)
                 | MessageType.Audio ->
                     let! audioFile = downloadFile message.Audio.FileId
                     let audio = 
                         { Title = Option.ofObj message.Audio.Title; 
                           Performer = Option.ofObj message.Audio.Performer;
-                          File = { Content = audioFile };
-                          Caption = Option.ofObj message.Caption }
+                          File = { Content = audioFile; Caption = Option.ofObj message.Caption }; }
                     return AudioMessage(messageInfo, audio)
                 | MessageType.Document ->
                     let! documentFile = downloadFile message.Document.FileId
@@ -226,16 +224,14 @@ type TelegramClient(botConfig: BotConfiguration) =
                     let document = 
                         { FileName = message.Document.FileName;
                           Thumb = thumbFile;
-                          File = { Content = documentFile };
-                          Caption = Option.ofObj message.Caption }
+                          File = { Content = documentFile; Caption = Option.ofObj message.Caption };}
                     return DocumentMessage(messageInfo, document)
                 | MessageType.Video ->
                     let! videoFile = downloadFile message.Video.FileId
-                    let! thumbFile = getThumbFile message.Video                          
+                    let! thumbFile = getThumbFile message.Video                         
                     let video = 
                         { Thumb = thumbFile; 
-                          File = { Content = videoFile };
-                          Caption = Option.ofObj message.Caption  }
+                          File = { Content = videoFile; Caption = Option.ofObj message.Caption }; }
                     return VideoMessage(messageInfo, video)
                 | MessageType.Sticker ->
                     let! (thumbFile, stickerFile) = 
@@ -245,31 +241,33 @@ type TelegramClient(botConfig: BotConfiguration) =
                     let stickerInfo = 
                         { Emoji = message.Sticker.Emoji;
                           PackName = Option.ofObj message.Sticker.SetName;
-                          Thumb = { Content = thumbFile };
-                          Sticker = { Content = stickerFile } }
+                          Thumb = { Content = thumbFile; Caption = None };
+                          Sticker = { Content = stickerFile; Caption = None } }
                     return StickerMessage(messageInfo, stickerInfo)
                 | MessageType.Photo ->
                     let maxPhotoSize = 
                         message.Photo 
                         |> Array.maxBy (fun s -> s.FileSize)                    
                     let! photoFile = downloadFile maxPhotoSize.FileId
-                    let photoInfo = { File = { Content = photoFile }; Caption = Option.ofObj message.Caption }
+                    let photoInfo = { File = { Content = photoFile; Caption = Option.ofObj message.Caption }; }
                     return PhotoMessage(messageInfo, photoInfo)
                 | MessageType.Voice ->
                     let! voiceFile = downloadFile message.Voice.FileId
                     let voice = 
                         { Duration = LanguagePrimitives.Int32WithMeasure message.Voice.Duration;
-                          File = { Content = voiceFile } }
+                          File = { Content = voiceFile; Caption = None } }
                     return VoiceMessage(messageInfo, voice)
+
                 | MessageType.ChatMemberLeft ->
                     let user = getUser message.LeftChatMember
-                    return ChatMemberLeft(messageInfo, user)
+                    return ChatMemberLeftMessage(messageInfo, user)
+
                 | MessageType.ChatMembersAdded ->
                     let users = 
                         message.NewChatMembers 
                         |> List.ofArray 
                         |> List.map getUser
-                    return ChatMembersAdded(messageInfo, users)
+                    return ChatMembersAddedMessage(messageInfo, users)
                 | _ -> 
                     return SkipMessage
         }
