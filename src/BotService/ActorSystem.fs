@@ -38,11 +38,11 @@ module BotProps =
             | DocumentMessage(info, message) ->
                 logInfo mailbox <| sprintf "Document: FileName: %s; Size: %i" message.FileName  message.File.Content.Length
             | VideoMessage(info, message) ->
-                logInfo mailbox <| sprintf "Video: FileName: %s;  Size: %i" (defaultArg message.Caption "") message.File.Content.Length
+                logInfo mailbox <| sprintf "Video: FileName: %s;  Size: %i" (defaultArg message.File.Caption "") message.File.Content.Length
             | VoiceMessage(info, message) ->
                 logInfo mailbox <| sprintf "Voice: Duration: %i seconds; Size: %i" message.Duration message.File.Content.Length
             | PhotoMessage(info, message) ->
-                logInfo mailbox <| sprintf "Photo: Caption: %s seconds; Size: %i" (defaultArg message.Caption "") message.File.Content.Length
+                logInfo mailbox <| sprintf "Photo: Caption: %s seconds; Size: %i" (defaultArg message.File.Caption "") message.File.Content.Length
             | _ -> 
                 ()
             return! loop ()
