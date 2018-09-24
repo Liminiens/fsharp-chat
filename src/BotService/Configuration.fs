@@ -1,4 +1,4 @@
-﻿namespace BotService
+﻿namespace BotService.Configuration
 
 type Socks5Configuration = 
     { Host: string; 
@@ -17,6 +17,11 @@ type BotConfigurationOptions() =
     member val Socks5Port = "" with get, set 
     member val Socks5Username = "" with get, set  
     member val Socks5Password = "" with get, set
+
+module Database =
+    open FSharp.Management
+
+    type ChatDatabaseConnectionString = StringReader<"database.txt">
 
 module BotConfiguration =   
     open System

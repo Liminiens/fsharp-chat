@@ -10,6 +10,7 @@ open Akka.FSharp
 open FluentMigrator.Runner
 open BotService.Actors
 open BotService.Migrations
+open BotService.Configuration
 
 type Startup private () =
     new (configuration: IConfiguration) as this =
@@ -28,7 +29,7 @@ type Startup private () =
         services.AddOptions() |> ignore
         services.Configure<BotConfigurationOptions>(this.Configuration.GetSection("BotConfigurationOptions")) |> ignore
         
-        let connectionString = this.Configuration.GetSection("ChatConnectionString").Value
+        let connectionString = Database.ChatDatabaseConnectionString.Content
 
         services.AddFluentMigratorCore()
             .ConfigureRunner(

@@ -6,7 +6,7 @@ open System.Threading.Tasks
 open FSharp.Control.Tasks
 open Akka.FSharp
 open Akka.Actor
-open BotService
+open BotService.Configuration
 open BotService.Telegram
 open BotService.Extensions
 

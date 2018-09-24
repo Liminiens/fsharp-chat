@@ -5,6 +5,7 @@
 
 #config
 botconfig.json
+database.txt
 
 #output
 publish/

@@ -8,7 +8,7 @@ open Telegram.Bot.Args
 open Telegram.Bot.Types
 open Telegram.Bot.Types.Enums
 open MihaZupan
-open BotService
+open BotService.Configuration
 open BotService.Extensions
 open Microsoft.FSharp.Core
 open Microsoft.FSharp.Data.UnitSystems.SI.UnitNames  
