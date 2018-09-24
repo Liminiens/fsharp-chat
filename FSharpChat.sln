@@ -3,6 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28016.0
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".paket", ".paket", "{6C11B54C-4ACA-482D-8C41-B97B53A03538}"
+	ProjectSection(SolutionItems) = preProject
+		paket.dependencies = paket.dependencies
+	EndProjectSection
+EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "BotService", "src\BotService\BotService.fsproj", "{4F0C64BF-09E6-4483-8F0E-A79407342CE8}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "BotService.Migrations", "src\BotService.Migrations\BotService.Migrations.fsproj", "{B9FAF462-8E40-4655-9A86-EE54C372AE71}"
