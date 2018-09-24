@@ -29,5 +29,8 @@ module Configuration =
     let [<Literal>] dbVendor = Common.DatabaseProviderTypes.POSTGRESQL
     let [<Literal>] useOptTypes  = true
     let [<Literal>] owner = "public, telegram"
-    let [<Literal>] indivAmount = 1000
-    let [<Literal>] resPath = __SOURCE_DIRECTORY__ + "../packages/"
+    let [<Literal>] resolutionPath = __SOURCE_DIRECTORY__ + "../../packages/Npgsql/lib/netstandard2.0"
+
+    (*type TelegramDb = SqlDataProvider<
+            dbVendor, Database.ChatDatabaseConnectionString.Content,
+            ResolutionPath = resolutionPath, Owner=owner>*)
