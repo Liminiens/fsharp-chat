@@ -11,7 +11,7 @@ nuget FSharp.Management 0.4.5
 nuget HttpToSocks5Proxy 1.0.5
 nuget Magick.NET-Q8-x64 7.8.0
 nuget Microsoft.AspNetCore.App
-nuget Npgsql 3.2.7
+nuget Npgsql 4.0.3
 nuget Serilog.AspNetCore 2.1.1
 nuget Serilog.Exceptions 4.1.0
 nuget Serilog.Formatting.Compact 1.0.0
