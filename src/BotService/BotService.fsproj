@@ -5,6 +5,34 @@
     <PlatformTarget>x64</PlatformTarget>
     <ServerGarbageCollection>false</ServerGarbageCollection>
   </PropertyGroup>
+  <!-- FSharp config -->
+  <PropertyGroup>
+    <IsWindows Condition="'$(OS)' == 'Windows_NT'">true</IsWindows>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildRuntimeType)' == 'Core'">
+    <IsOSX Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">true</IsOSX>
+    <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux>
+  </PropertyGroup>
+  <!-- /FSharp config -->
+  <!--Provider dlls-->
+  <Target Name="CopyLibrariesWin">
+    <Exec Command="xcopy /Y /R /C ..\..\packages\Npgsql\lib\netstandard2.0\Npgsql.dll temp\" />
+    <Exec Command="xcopy /Y /R /C ..\..\packages\System.Threading.Tasks.Extensions\lib\netstandard2.0\System.Threading.Tasks.Extensions.dll temp\" />
+    <Exec Command="xcopy /Y /R /C  ..\..\packages\System.Data.Common\lib\netstandard1.2\System.Data.Common.dll temp\" />
+    <Exec Command="xcopy /Y /R /C  ..\..\packages\System.Runtime.CompilerServices.Unsafe\lib\netstandard2.0\System.Runtime.CompilerServices.Unsafe.dll temp\" />
+  </Target>
+  <Target Name="CopyLibrariesNonWin">
+    <Exec Command="mkdir -p temp" />
+    <Exec Command="cp ../../packages/Npgsql/lib/netstandard2.0/Npgsql.dll temp/ " />
+    <Exec Command="cp ../../packages/System.Threading.Tasks.Extensions/lib/netstandard2.0/System.Threading.Tasks.Extensions.dll temp/ " />
+    <Exec Command="cp ../../packages/System.Data.Common/lib/netstandard1.2/System.Data.Common.dll temp/ " />
+    <Exec Command="cp ../../packages/System.Runtime.CompilerServices.Unsafe/lib/netstandard2.0/System.Runtime.CompilerServices.Unsafe.dll temp/ " />
+  </Target>
+  <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
+    <CallTarget Targets="CopyLibrariesWin" Condition="'$(IsWindows)' == 'true'"/>
+    <CallTarget Targets="CopyLibrariesNonWin" Condition="'$(IsWindows)' != 'true'"/>
+  </Target>
+  <!--/Provider dlls-->
   <ItemGroup>
     <Content Include="database.txt" />
     <Compile Include="Extensions.fs" />
@@ -17,6 +45,7 @@
     <Compile Include="Startup.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
     <ProjectReference Include="..\BotService.Migrations\BotService.Migrations.fsproj" />
   </ItemGroup>

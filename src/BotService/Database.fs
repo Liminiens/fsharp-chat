@@ -22,15 +22,21 @@ module DapperExtensions =
                 connection.QueryAsync<'TResult>(query) |> Async.AwaitTask
 
 module Configuration = 
-    open FSharp.Data
     open FSharp.Data.Sql
     open BotService.Configuration
 
     let [<Literal>] dbVendor = Common.DatabaseProviderTypes.POSTGRESQL
     let [<Literal>] useOptTypes  = true
-    let [<Literal>] owner = "public, telegram"
-    let [<Literal>] resolutionPath = __SOURCE_DIRECTORY__ + "../../packages/Npgsql/lib/netstandard2.0"
+    let [<Literal>] owner = "telegram"
+    let [<Literal>] connectionString = Database.ChatDatabaseConnectionString.Content
+    let [<Literal>] resolutionPath = __SOURCE_DIRECTORY__ + "/temp"
+    let [<Literal>] providerCache = __SOURCE_DIRECTORY__ + "/sqlprovider_schema"
+    let [<Literal>] useOptionTypes = true
 
-    (*type TelegramDb = SqlDataProvider<
-            dbVendor, Database.ChatDatabaseConnectionString.Content,
-            ResolutionPath = resolutionPath, Owner=owner>*)
+    type private TelegramDb = SqlDataProvider<dbVendor, connectionString,
+                                              UseOptionTypes = useOptionTypes,
+                                              ContextSchemaPath = providerCache, 
+                                              ResolutionPath = resolutionPath, 
+                                              Owner = owner>
+    let getContext () =
+        TelegramDb.GetDataContext()

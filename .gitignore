@@ -9,6 +9,7 @@ database.txt
 
 #output
 publish/
+temp/
 
 # User-specific files
 *.suo
