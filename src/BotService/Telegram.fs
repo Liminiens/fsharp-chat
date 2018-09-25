@@ -13,24 +13,16 @@ open BotService.Extensions
 open Microsoft.FSharp.Core
 open Microsoft.FSharp.Data.UnitSystems.SI.UnitNames  
 
-type ChatId = ChatId of int64
-    
-type UserId = UserId of int
-      
-type MessageId = MessageId of int
-
-type ReplyToId = ReplyToId of int
-
 type BotUsername = BotUsername of string
-
+      
 type Chat = 
-    { Id: ChatId; 
+    { Id: int64; 
       Title: string; 
       Description: string; 
       Username: option<string>; }
     
 type User = 
-    { Id: UserId;
+    { Id: int;
       Username: string; 
       IsBot: bool;
       FirstName: option<string>;
@@ -74,8 +66,8 @@ type MessageForwardSource =
     | FromUser of User
 
 type MessageInfo = 
-    { MessageId: MessageId; 
-      ReplyToId: option<ReplyToId>; 
+    { MessageId: int; 
+      ReplyToId: option<int>; 
       Forward: option<MessageForwardSource>; 
       Chat: Chat; 
       User: User; 
@@ -130,7 +122,7 @@ type TelegramClient(botConfig: BotConfiguration) =
         }
     
     let getUser (user: Telegram.Bot.Types.User) : User = 
-        { Id = UserId(user.Id); 
+        { Id = user.Id; 
           Username = user.Username;
           IsBot = user.IsBot;
           FirstName = Option.ofObj user.FirstName; 
@@ -143,7 +135,7 @@ type TelegramClient(botConfig: BotConfiguration) =
                 |> Async.AwaitTask
             return 
                 { Title = chat.Title; 
-                  Id = ChatId(chat.Id);
+                  Id = chat.Id;
                   Description = chatEntity.Description;
                   Username = Option.ofObj chat.Username; }
         }
@@ -155,7 +147,7 @@ type TelegramClient(botConfig: BotConfiguration) =
                 
             let replyToId = 
                 if isNotNull message.ReplyToMessage 
-                    then Some(ReplyToId(message.ReplyToMessage.MessageId))
+                    then Some(message.ReplyToMessage.MessageId)
                     else None
             
             let! forward = 
@@ -171,7 +163,7 @@ type TelegramClient(botConfig: BotConfiguration) =
                     Async.AsAsync None
 
             return
-                { MessageId = MessageId(message.MessageId);
+                { MessageId = message.MessageId;
                   ReplyToId = replyToId;
                   Forward = forward;
                   Date = message.Date;
