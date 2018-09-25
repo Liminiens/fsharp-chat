@@ -6,7 +6,6 @@ System.Reflection
 System.Reflection.TypeExtensions
 System.Runtime.Serialization.Formatters
 System.Threading.Tasks.Extensions
-Dapper
 FSharp.Management
 Microsoft.AspNetCore.App
 Akka

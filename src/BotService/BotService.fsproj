@@ -29,8 +29,8 @@
     <Exec Command="cp ../../packages/System.Runtime.CompilerServices.Unsafe/lib/netstandard2.0/System.Runtime.CompilerServices.Unsafe.dll temp/ " />
   </Target>
   <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
-    <CallTarget Targets="CopyLibrariesWin" Condition="'$(IsWindows)' == 'true'"/>
-    <CallTarget Targets="CopyLibrariesNonWin" Condition="'$(IsWindows)' != 'true'"/>
+    <CallTarget Targets="CopyLibrariesWin" Condition="'$(IsWindows)' == 'true'" />
+    <CallTarget Targets="CopyLibrariesNonWin" Condition="'$(IsWindows)' != 'true'" />
   </Target>
   <!--/Provider dlls-->
   <ItemGroup>
@@ -45,7 +45,6 @@
     <Compile Include="Startup.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
-  <ItemGroup />
   <ItemGroup>
     <ProjectReference Include="..\BotService.Migrations\BotService.Migrations.fsproj" />
   </ItemGroup>
