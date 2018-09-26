@@ -1,6 +1,31 @@
 ﻿namespace BotService.Extensions
 
 [<AutoOpen>]
+module Logging = 
+    open System
+    open Akka.FSharp
+    open Akka.Logger.Serilog
+ 
+    let private getLogger (mailbox: Actor<_>) =
+        mailbox.Context.GetLogger<SerilogLoggingAdapter>()
+
+    let logDebugFmt mailbox format args = 
+        let logger = getLogger mailbox
+        logger.Debug(format, args)
+
+    let logInfoFmt mailbox format args = 
+        let logger = getLogger mailbox
+        logger.Info(format, args)
+    
+    let logErrorFmt mailbox format args = 
+        let logger = getLogger mailbox
+        logger.Error(format, args)
+
+    let logExceptionFmt mailbox exn format args = 
+        let logger = getLogger mailbox
+        logger.Error(exn, format, args)
+
+[<AutoOpen>]
 module Common =
     let inline isNotNull obj =
         isNull obj |> not
@@ -8,6 +33,12 @@ module Common =
 [<AutoOpen>]
 module Async =
     let Map (f: 'T -> 'TResult) (op: Async<'T>) : Async<'TResult> =
+        async {
+            let! result = op
+            return f result
+        }
+    
+    let Iter (f: 'T -> unit) (op: Async<'T>) : Async<Unit> =
         async {
             let! result = op
             return f result
