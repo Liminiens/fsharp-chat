@@ -195,3 +195,14 @@ type AddMessageTablesMigration() =
         __.Delete.Table("chat_user_log") |> ignore
 
         __.Delete.Table("message_info") |> ignore
+
+[<Migration(4L)>]
+type MakeChatIdInt64Migration() = 
+    inherit Migration()
+    
+    override __.Up () = 
+       __.Alter.TableInChatSchema("chat").AlterColumn("chat_id").AsInt64() |> ignore
+
+    override __.Down () = 
+       __.Alter.TableInChatSchema("chat").AlterColumn("chat_id").AsInt32() |> ignore
+        
