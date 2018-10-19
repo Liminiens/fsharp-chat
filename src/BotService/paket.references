@@ -26,3 +26,4 @@ Serilog.Sinks.File
 SixLabors.ImageSharp
 Telegram.Bot
 FSharp.Core
+Akkling

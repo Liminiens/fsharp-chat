@@ -1,16 +1,45 @@
 namespace BotService
 
 open System
+open System.Threading
+open System.Threading.Tasks
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Hosting
 open Microsoft.AspNetCore.Mvc
 open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.DependencyInjection
+open Akka.Actor
 open Akka.FSharp
-open FluentMigrator.Runner
-open BotService.Actors
+open BotService.Bot
 open BotService.Migrations
 open BotService.Configuration
+open FluentMigrator.Runner
+
+module ActorSystem =   
+    open Microsoft.Extensions.Hosting        
+    open Microsoft.Extensions.Logging
+    open Microsoft.Extensions.Options
+    open BotService.Configuration
+    open Bot.Actors
+    open FSharp.Control.Tasks
+
+    type ActorSystemService(configuration: IOptions<BotConfigurationOptions>, 
+                            system: ActorSystem, 
+                            logger: ILogger<ActorSystemService>) = 
+        inherit BackgroundService()
+
+        override __.ExecuteAsync(token: CancellationToken) =
+            task {
+                let configuration = BotConfiguration.load configuration.Value               
+                match configuration with 
+                | Ok botConfig ->           
+                    spawn system "bot" (BotProps.createProps botConfig) |> ignore
+                    logger.LogInformation("Spawned root actor")
+                | Error error -> 
+                    logger.LogError("Bot configuration error: {Text}", error)
+            } :> Task
+
+open ActorSystem
 
 type Startup private () =
     new (configuration: IConfiguration) as this =

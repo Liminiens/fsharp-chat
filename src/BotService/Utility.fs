@@ -1,13 +1,12 @@
-﻿namespace BotService.Extensions
+﻿namespace BotService.Utility
 
 [<AutoOpen>]
 module Logging = 
-    open System
-    open Akka.FSharp
+    open Akkling
     open Akka.Logger.Serilog
  
     let private getLogger (mailbox: Actor<_>) =
-        mailbox.Context.GetLogger<SerilogLoggingAdapter>()
+        mailbox.UntypedContext.GetLogger<SerilogLoggingAdapter>()
 
     let logDebugFmt mailbox format args = 
         let logger = getLogger mailbox

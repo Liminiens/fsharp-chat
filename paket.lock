@@ -20,6 +20,18 @@ NUGET
       Akka (>= 1.3.9) - restriction: || (>= net45) (>= netstandard1.6)
       NETStandard.Library (>= 1.6.1) - restriction: && (< net45) (>= netstandard1.6)
       Serilog (>= 2.7.1) - restriction: || (>= net45) (>= netstandard1.6)
+    Akka.Serialization.Hyperion (1.3.9-beta68) - restriction: || (>= net452) (>= netstandard1.6)
+      Akka (>= 1.3.9-beta68) - restriction: || (>= net45) (>= netstandard1.6)
+      Hyperion (>= 0.9.8) - restriction: || (>= net45) (>= netstandard1.6)
+      NETStandard.Library (>= 1.6.1) - restriction: && (< net45) (>= netstandard1.6)
+      System.Reflection (>= 4.3) - restriction: && (< net45) (>= netstandard1.6)
+      System.Runtime (>= 4.3) - restriction: && (< net45) (>= netstandard1.6)
+    Akkling (0.9.3)
+      Akka (>= 1.3.8) - restriction: || (>= net452) (>= netstandard1.6)
+      Akka.Serialization.Hyperion (>= 1.3.8-beta66) - restriction: || (>= net452) (>= netstandard1.6)
+      FSharp.Core (>= 4.3.4) - restriction: || (>= net452) (>= netstandard1.6)
+      NETStandard.Library (>= 1.6.1) - restriction: && (< net452) (>= netstandard1.6)
+      System.ValueTuple (>= 4.3.1) - restriction: && (< net452) (>= netstandard1.6)
     Destructurama.FSharp.NetCore (1.0.14)
       FSharp.Core (>= 4.2.3) - restriction: >= netstandard2.0
       Serilog (>= 2.6) - restriction: >= netstandard2.0
@@ -119,6 +131,10 @@ NUGET
       FSharp.Core (>= 4.3.2) - restriction: && (< net45) (>= netstandard2.0)
       System.Reflection.Emit.Lightweight (>= 4.3) - restriction: && (< net45) (>= netstandard2.0)
     HttpToSocks5Proxy (1.0.5)
+    Hyperion (0.9.8) - restriction: || (>= net452) (>= netstandard1.6)
+      Microsoft.CSharp (>= 4.3) - restriction: && (< net45) (>= netstandard1.6)
+      NETStandard.Library (>= 1.6.1) - restriction: && (< net45) (>= netstandard1.6)
+      System.Reflection.TypeExtensions (>= 4.3) - restriction: && (< net45) (>= netstandard1.6)
     Magick.NET-Q8-x64 (7.8)
       System.Collections.NonGeneric (>= 4.3) - restriction: && (< net20) (>= netstandard1.3) (< netstandard2.0)
       System.Xml.XDocument (>= 4.3) - restriction: && (< net20) (>= netstandard1.3) (< netstandard2.0)
@@ -698,7 +714,7 @@ NUGET
     Microsoft.AspNetCore.WebUtilities (2.1.1) - restriction: >= netcoreapp2.1
       Microsoft.Net.Http.Headers (>= 2.1.1) - restriction: >= netstandard2.0
       System.Text.Encodings.Web (>= 4.5) - restriction: >= netstandard2.0
-    Microsoft.CodeAnalysis.Analyzers (2.6.1) - restriction: >= netcoreapp2.1
+    Microsoft.CodeAnalysis.Analyzers (2.6.2) - restriction: >= netcoreapp2.1
     Microsoft.CodeAnalysis.Common (2.9) - restriction: >= netcoreapp2.1
       Microsoft.CodeAnalysis.Analyzers (>= 2.6.1) - restriction: >= netstandard1.3
       System.AppContext (>= 4.3) - restriction: >= netstandard1.3
@@ -746,7 +762,7 @@ NUGET
       Microsoft.AspNetCore.Razor.Language (>= 2.1.2) - restriction: || (>= net46) (>= netstandard2.0)
       Microsoft.CodeAnalysis.Common (>= 2.8) - restriction: || (>= net46) (>= netstandard2.0)
       Microsoft.CodeAnalysis.CSharp (>= 2.8) - restriction: || (>= net46) (>= netstandard2.0)
-    Microsoft.CSharp (4.5) - restriction: || (&& (< net20) (>= netstandard1.1) (< netstandard1.3)) (&& (< net20) (>= netstandard1.3) (< netstandard2.0)) (>= netcoreapp2.1)
+    Microsoft.CSharp (4.5) - restriction: || (&& (< net20) (>= netstandard1.1) (< netstandard1.3)) (&& (< net20) (>= netstandard1.3) (< netstandard2.0)) (&& (< net45) (>= netstandard1.6)) (>= netcoreapp2.1)
     Microsoft.DotNet.PlatformAbstractions (2.1) - restriction: >= netcoreapp2.1
       System.AppContext (>= 4.1) - restriction: && (< net45) (>= netstandard1.3)
       System.Collections (>= 4.0.11) - restriction: && (< net45) (>= netstandard1.3)
@@ -1727,7 +1743,7 @@ NUGET
       Microsoft.NETCore.Platforms (>= 1.1) - restriction: || (>= dnxcore50) (&& (< monoandroid) (< monotouch) (< net451) (>= netstandard1.2) (< win81) (< wpa81) (< xamarinios) (< xamarinmac) (< xamarintvos) (< xamarinwatchos))
       Microsoft.NETCore.Targets (>= 1.1) - restriction: || (>= dnxcore50) (&& (< monoandroid) (< monotouch) (< net451) (>= netstandard1.2) (< win81) (< wpa81) (< xamarinios) (< xamarinmac) (< xamarintvos) (< xamarinwatchos))
       System.Runtime (>= 4.3) - restriction: || (>= dnxcore50) (&& (< monoandroid) (< monotouch) (< net451) (>= netstandard1.2) (< win81) (< wpa81) (< xamarinios) (< xamarinmac) (< xamarintvos) (< xamarinwatchos))
-    System.ValueTuple (4.5) - restriction: || (&& (>= net45) (< net46) (< netstandard1.6)) (&& (< net45) (>= netstandard1.6)) (&& (>= net46) (< netstandard1.6)) (>= netstandard1.1)
+    System.ValueTuple (4.5) - restriction: || (&& (>= net45) (< net46) (< netstandard1.6)) (&& (< net45) (>= netstandard1.6)) (&& (< net452) (>= netstandard1.6)) (&& (>= net46) (< netstandard1.6)) (>= netstandard1.1)
     System.Xml.ReaderWriter (4.3.1) - restriction: || (&& (>= dnxcore50) (>= netstandard1.3)) (&& (< monoandroid) (< monotouch) (< net20) (>= netstandard1.3) (< netstandard2.0) (< xamarinmac) (< xamarintvos) (< xamarinwatchos)) (&& (< net45) (< netstandard1.2) (>= netstandard2.0) (< win8)) (&& (< net45) (< netstandard1.3) (>= netstandard2.0) (< win8) (< wpa81)) (&& (< net45) (< netstandard1.4) (>= netstandard2.0) (< win8) (< wpa81)) (&& (< net45) (< netstandard1.5) (>= netstandard2.0) (< win8) (< wpa81)) (&& (< net45) (< netstandard1.6) (>= netstandard2.0) (< win8) (< wpa81)) (&& (< net451) (>= net46) (< netstandard1.4) (>= netstandard2.0)) (>= netcoreapp2.1) (&& (>= netstandard2.0) (< portable-net45+win8+wpa81)) (&& (>= netstandard2.0) (>= uap10.0))
     System.Xml.XDocument (4.3) - restriction: || (&& (< net20) (>= netstandard1.3) (< netstandard2.0)) (&& (< net45) (< netstandard1.2) (>= netstandard2.0) (< win8)) (&& (< net45) (< netstandard1.3) (>= netstandard2.0) (< win8) (< wpa81)) (&& (< net45) (< netstandard1.4) (>= netstandard2.0) (< win8) (< wpa81)) (&& (< net45) (< netstandard1.5) (>= netstandard2.0) (< win8) (< wpa81)) (&& (< net45) (< netstandard1.6) (>= netstandard2.0) (< win8) (< wpa81)) (>= netcoreapp2.1) (&& (>= netstandard2.0) (< portable-net45+win8+wpa81)) (&& (>= netstandard2.0) (>= uap10.0))
       System.Collections (>= 4.3) - restriction: || (>= dnxcore50) (&& (< monoandroid) (< monotouch) (< net45) (>= netstandard1.3) (< win8) (< wpa81) (< xamarinios) (< xamarinmac) (< xamarintvos) (< xamarinwatchos))

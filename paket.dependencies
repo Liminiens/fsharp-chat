@@ -3,6 +3,7 @@ source https://api.nuget.org/v3/index.json
 nuget Akka 1.3.9
 nuget Akka.FSharp 1.3.9
 nuget Akka.Logger.Serilog 1.3.9
+nuget Akkling
 nuget Destructurama.FSharp.NetCore 1.0.14
 nuget FluentMigrator 3.1.3
 nuget FluentMigrator.Runner 3.1.3

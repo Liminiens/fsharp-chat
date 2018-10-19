@@ -35,12 +35,13 @@
   <!--/Provider dlls-->
   <ItemGroup>
     <Content Include="database.txt" />
-    <Compile Include="Extensions.fs" />
+    <Compile Include="Utility.fs" />
+    <Compile Include="AkkaExtensions.fs" />
     <Compile Include="Media.fs" />
     <Compile Include="Configuration.fs" />
     <Compile Include="Database.fs" />
     <Compile Include="Telegram.fs" />
-    <Compile Include="ActorSystem.fs" />
+    <Compile Include="Bot.fs" />
     <Compile Include="ValuesController.fs" />
     <Compile Include="Startup.fs" />
     <Compile Include="Program.fs" />
