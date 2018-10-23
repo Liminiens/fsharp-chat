@@ -9,7 +9,7 @@ open Microsoft.AspNetCore.Mvc
 open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.DependencyInjection
 open Akka.Actor
-open Akka.FSharp
+open Akkling
 open BotService.Bot
 open BotService.Migrations
 open BotService.Configuration
@@ -33,7 +33,7 @@ module ActorSystem =
                 let configuration = BotConfiguration.load configuration.Value               
                 match configuration with 
                 | Ok botConfig ->           
-                    spawn system "bot" (BotProps.createProps botConfig) |> ignore
+                    spawn system "bot" (props (BotProps.createProps botConfig)) |> ignore
                     logger.LogInformation("Spawned root actor")
                 | Error error -> 
                     logger.LogError("Bot configuration error: {Text}", error)
