@@ -41,33 +41,55 @@ module Actors =
             logException actor exc
 
     module DatabaseProps =
-        type NewChatDto = 
+        open System.Threading.Tasks
+
+        type GetOrInsertChatDto = 
             { Id: int64; 
               Title: option<string>; 
               Description: option<string>; 
               Username: option<string>; }
         
+        type ChatInsertResult = 
+            | NewChat of Guid
+            | AlreadyExists of Guid
+
         type DatabaseCommand = 
-            | InsertNewChat of NewChatDto
+            | GetOrInsertChat of GetOrInsertChatDto * TaskCompletionSource<Guid>
         
         let insertNewChat dto =
-            let id = Guid.NewGuid()
             let context = getDataContext()
-            let chatEntity = context.Telegram.Chat.Create()
-            chatEntity.Id <- id
-            chatEntity.ChatId <- dto.Id
-            chatEntity.Title <- dto.Title
-            chatEntity.Description <- dto.Description
-            chatEntity.Username <- dto.Username
-            context.SubmitUpdates()
-            id
+            let chatExists = query {
+                for chat in context.Telegram.Chat do
+                where (chat.ChatId = dto.Id)
+                select (Some chat.Id)
+                exactlyOneOrDefault
+            }
+            match chatExists with
+            | Some(id) ->
+                AlreadyExists(id)
+            | None ->
+                let id = Guid.NewGuid()
+                let chatEntity = context.Telegram.Chat.Create()
+                chatEntity.Id <- id
+                chatEntity.ChatId <- dto.Id
+                chatEntity.Title <- dto.Title
+                chatEntity.Description <- dto.Description
+                chatEntity.Username <- dto.Username
+                context.SubmitUpdates()
+                NewChat(id)
 
-        let databaseCommandProps (mailbox: Actor<_>) =
+        let createProps (mailbox: Actor<_>) =
             let handleMessage = 
                 function
-                | InsertNewChat(dto) ->   
-                    let chatId = insertNewChat dto
-                    logInfoFmt mailbox "Added new chat: {Chat}" [|chatId|]
+                | GetOrInsertChat(dto, completitionSource) ->   
+                    let chatIdResult = insertNewChat dto
+                    match chatIdResult with
+                    | AlreadyExists(id) ->
+                        logInfoFmt mailbox "Chat already exists: {Chat}" [|id|]
+                        completitionSource.SetResult(id)
+                    | NewChat(id) ->
+                        logInfoFmt mailbox "Added new chat: {Chat}" [|id|]
+                        completitionSource.SetResult(id)
 
             let rec loop () = actor {
                 let! message = mailbox.Receive()
@@ -88,4 +110,4 @@ module Actors =
                 |> Strategy.oneForOne
                 |> Some
 
-            spawn parentMailbox "database-command" (propsRS databaseCommandProps router strategy)
+            spawn parentMailbox "database-command" (propsRS createProps router strategy)
