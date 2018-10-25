@@ -37,7 +37,6 @@
     <Content Include="database.txt" />
     <Compile Include="Utility.fs" />
     <Compile Include="AkkaExtensions.fs" />
-    <Compile Include="Media.fs" />
     <Compile Include="Configuration.fs" />
     <Compile Include="Database.fs" />
     <Compile Include="Telegram.fs" />

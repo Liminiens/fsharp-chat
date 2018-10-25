@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Media.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Magick.NET-Q8-x64" Version="7.9.0" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="1.0.0-beta0005" />
+  </ItemGroup>
+
+</Project>

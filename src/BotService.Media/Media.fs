@@ -1,5 +1,4 @@
-﻿#nowarn "0067"
-namespace FSharpChat.Bot
+﻿namespace BotService
 open System
 
 module Media = 

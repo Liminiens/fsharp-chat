@@ -11,9 +11,6 @@ open BotService.Utility
 open BotService.Database.Actors.DatabaseProps
 
 module Actors =
-    let inline processMessage message f : unit = 
-        f message
-
     module TelegramMessageProps = 
         let private processNewChatInfo (info: MessageInfo) (action: _ -> unit) = 
             let newChat = 
@@ -53,8 +50,7 @@ module Actors =
 
             let rec loop () = actor {
                 let! message = mailbox.Receive()
-                tempProcess mailbox databaseCommandActor 
-                |> processMessage message        
+                tempProcess mailbox databaseCommandActor message        
                 return! loop ()
             }
             loop ()
