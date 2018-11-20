@@ -1,5 +1,30 @@
 ﻿namespace BotService.Configuration
 
+module Database =
+    open FSharp.Management
+
+    type private ChatDatabaseConnectionString = StringReader<"database.txt">
+
+    let [<Literal>] connectionString = ChatDatabaseConnectionString.Content
+
+    module Context = 
+        open FSharp.Data.Sql
+
+        let [<Literal>] private dbVendor = Common.DatabaseProviderTypes.POSTGRESQL
+        let [<Literal>] private owner = "telegram"
+        let [<Literal>] private resolutionPath = __SOURCE_DIRECTORY__ + "/temp"
+        let [<Literal>] private providerCache = __SOURCE_DIRECTORY__ + "/sqlprovider_schema"
+        let [<Literal>] private useOptionTypes = true
+
+        type private TelegramDb = SqlDataProvider<dbVendor, connectionString,
+                                                  (*ContextSchemaPath = providerCache,*)
+                                                  UseOptionTypes = useOptionTypes,
+                                                  ResolutionPath = resolutionPath, 
+                                                  Owner = owner>
+
+        let getDataContext () =
+            TelegramDb.GetDataContext()
+
 type Socks5Configuration = 
     { Host: string; 
       Port: int; 
@@ -18,14 +43,8 @@ type BotConfigurationOptions() =
     member val Socks5Username = "" with get, set  
     member val Socks5Password = "" with get, set
 
-module Database =
-    open FSharp.Management
-
-    type ChatDatabaseConnectionString = StringReader<"database.txt">
-
 module BotConfiguration =   
     open System
-    open Microsoft.FSharp.Core  
 
     let load (configuration: BotConfigurationOptions) =
         let isEmpty str = String.IsNullOrWhiteSpace(str)                      
@@ -44,8 +63,11 @@ module BotConfiguration =
             | true ->
                 WithProxy
             | false ->
-                if settings |> List.distinct |> List.length > 1 then 
-                    ProxyConfigurationError else WithoutProxy
+                if settings |> List.distinct |> List.length > 1 
+                    then 
+                        ProxyConfigurationError 
+                    else 
+                        WithoutProxy
                                    
         
         match configuration.Token with

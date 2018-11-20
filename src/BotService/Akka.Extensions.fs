@@ -1,4 +1,5 @@
-﻿namespace BotService.AkkaExtensions
+﻿namespace BotService.Akka.Extensions
+
 open Akkling
 open Akka.Routing
 open Akka.Actor
@@ -14,8 +15,9 @@ module Routing =
 [<AutoOpen>]
 module Logging = 
     open Akka.Logger.Serilog
+    open Akka.Event
  
-    let private getLogger (mailbox: Actor<_>) =
+    let private getLogger (mailbox: Actor<_>) : ILoggingAdapter =
         mailbox.UntypedContext.GetLogger<SerilogLoggingAdapter>()
 
     let logDebugFmt mailbox format args = 

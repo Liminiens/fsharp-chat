@@ -25,7 +25,7 @@ module Program =
 
     let exitCode = 0
 
-    let CreateWebHostBuilder args =        
+    let createWebHostBuilder args =        
         let configureBotSettingsFile (builder: IConfigurationBuilder) = 
             builder.AddJsonFile("botconfig.json", false, false) |> ignore
     
@@ -41,6 +41,6 @@ module Program =
         Console.OutputEncoding <- System.Text.Encoding.UTF8;
         Log.Logger <- Logger.setup
         
-        CreateWebHostBuilder(args).Build().Run()
+        createWebHostBuilder(args).Build().Run()
 
         exitCode

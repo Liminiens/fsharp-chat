@@ -91,6 +91,16 @@ type TelegramMessageEditedArgs =
     | DocumentMessageEdited of MessageEditedInfo * EditedDocument
     | SkipEdit
 
+    member this.GetMessageInfo() = 
+        match this with
+        | TextMessageEdited(info, _)
+        | PhotoMessageEdited(info, _)
+        | AudioMessageEdited(info, _)
+        | DocumentMessageEdited(info, _) ->
+            Some info
+        | SkipEdit -> 
+            None    
+
 type TelegramMessageArgs = 
     | TextMessage of MessageInfo * Text
     | AudioMessage of MessageInfo * Audio
@@ -102,6 +112,25 @@ type TelegramMessageArgs =
     | ChatMemberLeftMessage of MessageInfo * User
     | ChatMembersAddedMessage of MessageInfo * list<User>
     | SkipMessage   
+
+    member this.GetMessageInfo() = 
+        match this with
+        | TextMessage(info, _)
+        | AudioMessage(info, _)
+        | StickerMessage(info, _)
+        | DocumentMessage(info, _)
+        | VideoMessage(info, _) 
+        | VoiceMessage(info, _) 
+        | PhotoMessage(info, _)
+        | ChatMembersAddedMessage(info, _)
+        | ChatMemberLeftMessage(info, _) ->
+            Some info
+        | SkipMessage -> 
+            None
+
+type TelegramMessageEvent =    
+    | NewMessage of Async<TelegramMessageArgs>
+    | EditedMessage of Async<TelegramMessageEditedArgs>
 
 type TelegramClient(botConfig: BotConfiguration) = 
     let client = 
@@ -178,7 +207,7 @@ type TelegramClient(botConfig: BotConfiguration) =
             return messageEditedInfo
         }
 
-    let readMessage (messageArgs: MessageEventArgs) : Async<TelegramMessageArgs> =      
+    let mapMessage (messageArgs: MessageEventArgs) : Async<TelegramMessageArgs> =      
 
         let inline getThumbFile (document: ^TContainer) : Async<Option<File>> = 
             let media = (^TContainer: (member Thumb: PhotoSize)(document))
@@ -264,7 +293,7 @@ type TelegramClient(botConfig: BotConfiguration) =
                     return SkipMessage
         }
     
-    let readEditedMessage (messageArgs: MessageEventArgs) : Async<TelegramMessageEditedArgs> = 
+    let mapEditedMessage (messageArgs: MessageEventArgs) : Async<TelegramMessageEditedArgs> = 
         async {
             let message = messageArgs.Message
             let! messageInfo = getMessageEditedInfo message
@@ -295,11 +324,10 @@ type TelegramClient(botConfig: BotConfiguration) =
         |> Async.Map (fun u -> BotUsername(u.Username))
 
     [<CLIEvent>]
-    member this.OnMessage : IEvent<Choice<Async<TelegramMessageArgs>, Async<TelegramMessageEditedArgs>>> =
+    member this.OnMessage : IEvent<TelegramMessageEvent> =
         let resultEvent = Event<_>()
-        let messageEvent = Event.map readMessage client.OnMessage      
-        let editedEvent = Event.map readEditedMessage client.OnMessageEdited
-        messageEvent.Add(fun args -> resultEvent.Trigger(Choice1Of2(args)))
-        editedEvent.Add(fun args -> resultEvent.Trigger(Choice2Of2(args)))
+        let messageEvent = Event.map mapMessage client.OnMessage      
+        let editedEvent = Event.map mapEditedMessage client.OnMessageEdited
+        messageEvent.Add(fun args -> resultEvent.Trigger(NewMessage(args)))
+        editedEvent.Add(fun args -> resultEvent.Trigger(EditedMessage(args)))
         resultEvent.Publish
-

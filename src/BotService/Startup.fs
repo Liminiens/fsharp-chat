@@ -20,7 +20,6 @@ module ActorSystem =
     open Microsoft.Extensions.Logging
     open Microsoft.Extensions.Options
     open BotService.Configuration
-    open Bot.Actors
     open FSharp.Control.Tasks
 
     type ActorSystemService(configuration: IOptions<BotConfigurationOptions>, 
@@ -33,7 +32,7 @@ module ActorSystem =
                 let configuration = BotConfiguration.load configuration.Value               
                 match configuration with 
                 | Ok botConfig ->           
-                    spawn system "bot" (props (BotProps.createProps botConfig)) |> ignore
+                    spawn system "bot" (props (BotActor.createProps botConfig)) |> ignore
                     logger.LogInformation("Spawned root actor")
                 | Error error -> 
                     logger.LogError("Bot configuration error: {Text}", error)
@@ -57,14 +56,12 @@ type Startup private () =
         services.AddHostedService<ActorSystemService>() |> ignore
         services.AddOptions() |> ignore
         services.Configure<BotConfigurationOptions>(this.Configuration.GetSection("BotConfigurationOptions")) |> ignore
-        
-        let connectionString = Database.ChatDatabaseConnectionString.Content
 
         services.AddFluentMigratorCore()
             .ConfigureRunner(
                 fun run -> 
                     let assembly = typeof<MigrationAssemblyMarker>.Assembly
-                    run.AddPostgres().WithGlobalConnectionString(connectionString).ScanIn(assembly) |> ignore) 
+                    run.AddPostgres().WithGlobalConnectionString(Database.connectionString).ScanIn(assembly) |> ignore) 
             |> ignore
 
     // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
