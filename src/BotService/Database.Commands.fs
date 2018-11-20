@@ -1,15 +1,12 @@
 ﻿namespace BotService.Database.Commands
 
 open System
-open System.Threading.Tasks
 open BotService.Configuration
 open BotService.Database.Common
 
 type IdCommand<'T, 'TId> = 'T -> Async<'TId>
 
 type UnitCommand<'T> = IdCommand<'T, unit>
-
-type TaskSourceCommand<'T, 'TId> = 'T -> TaskCompletionSource<'TId> -> Async<unit>
 
 module Chat = 
     type InsertChatDto = 
