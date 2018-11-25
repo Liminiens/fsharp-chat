@@ -3,9 +3,25 @@
 open System
 open Akkling
 open Akka.Actor
+open BotService.BotClient  
 open BotService.Telegram  
 open BotService.Configuration
 open BotService.Akka.Extensions
+
+[<Struct>]
+type ChatId = ChatId of Id
+
+[<Struct>]
+type UserId = UserId of Id
+
+[<Struct>]
+type MessageInfoId = MessageInfoId of Id
+
+[<Struct>]
+type ForwardedFromChatId = ForwardedFromChatId of Id
+
+[<Struct>]
+type ForwardedFromUserId = ForwardedFromUserId of Id
 
 type ChatActorMessage = 
     | GetChatId of MessageWithReply<Chat, Id>
@@ -17,9 +33,22 @@ type UserActorMessage =
     | InsertUser of MessageWithReply<User, Id>
     | ReplyUserId of ReplyResult<Id>
 
+type MessageInfoMessage = MessageInfo * ChatId * UserId
+
+type MessageInfoMessageForwardedFromChat = MessageInfo * ChatId * UserId * ForwardedFromChatId
+
+type MessageInfoMessageForwardedFromUser = MessageInfo * ChatId * UserId * ForwardedFromUserId
+
+type MessageInfoActorMessage = 
+    | InsertMessageInfo of MessageWithReply<MessageInfoMessage, Id>
+    | InsertMessageInfoForwardedFromChat of MessageWithReply<MessageInfoMessageForwardedFromChat, Chat>
+    | InsertMessageInfoForwardedFromUser of MessageWithReply<MessageInfoMessageForwardedFromUser, Chat>
+    | ReplyMessageInfoId of ReplyResult<Id>
+
 type DatabaseActorMessage = 
     | ChatActorMessage of ChatActorMessage
     | UserActorMessage of UserActorMessage
+    | MessageInfoActorMessage of MessageInfoActorMessage
 
 module ChatActor =
     open BotService.Database.Commands.Chat
@@ -117,11 +146,73 @@ module UserActor =
 
         spawn parentMailbox ActorNames.databaseUser (propsS createProps strategy)
 
-module DatabaseActor = 
+module MessageInfoActor = 
+    open Commands.MessageInfo
+    open BotService.Common
+    open System.Threading.Tasks
 
-    let createProps (mailbox: Actor<DatabaseActorMessage>) =
+    let createProps (mailbox: Actor<MessageInfoActorMessage>) (botClientMailbox: IActorRef<BotClientActorMessage>) =
         let chatActor = ChatActor.spawn mailbox
         let userActor = UserActor.spawn mailbox
+
+        let askForChatReplyId (message: MessageInfoMessage) chatId =
+            let tellResult res = InsertMessageInfoForwardedFromChat(message, res)
+            let chatIdSource = TaskCompletionSource<Chat>()
+            botClientMailbox <! GetChatInfo(TelegramChatId(chatId), chatIdSource)
+            tellSelfOnReply mailbox.Self chatIdSource tellResult
+
+        let handleMessage message = 
+            match message with
+            | InsertMessageInfo((info, ChatId(Id(chatId)), UserId(Id(userId))) as message, idSource) ->
+                async {
+                    let messageInfoDto = 
+                        match info.Forward with
+                        | None ->
+                            { MessageId = info.MessageId
+                              ChatId = chatId
+                              UserId = userId
+                              MessageDate = info.Date
+                              ForwardedFromChatId = None
+                              ForwardedFromUserId = None
+                              ReplyToMessageId = info.ReplyToId }
+                        | Some(FromChat(forward)) ->
+                            { MessageId = info.MessageId
+                              ChatId = chatId
+                              UserId = userId
+                              MessageDate = info.Date
+                              ForwardedFromChatId = forward.Id
+                              ForwardedFromUserId = None
+                              ReplyToMessageId = info.ReplyToId }
+                        | Some(FromUser(forward)) -> 
+                            ()
+                    let! id = insertMessageInfoCommand messageInfoDto
+                    logInfoFmt mailbox "Inserted new user: {User}" [|id|]
+                    return ReplyUserId(id, idSource)
+                } |!> mailbox.Self
+            | ReplyMessageInfoId(data) -> 
+                reply data
+
+        let rec loop () = actor {
+            let! message = mailbox.Receive()
+            handleMessage message
+        }
+        loop ()
+        
+    let spawn parentMailbox (botClientMailbox: IActorRef<BotClientActorMessage>) = 
+        let strategy =
+            fun (exc: Exception) ->
+                Directive.Resume
+            |> Strategy.oneForOne
+            |> Some    
+
+        spawn parentMailbox ActorNames.databaseMessageInfo (propsS (fun actor -> createProps actor botClientMailbox ) strategy)    
+
+module DatabaseActor = 
+
+    let createProps (botClientMailbox: IActorRef<BotClientActorMessage>) (mailbox: Actor<DatabaseActorMessage>) =
+        let chatActor = ChatActor.spawn mailbox
+        let userActor = UserActor.spawn mailbox
+        let messageInfoActor = MessageInfoActor.spawn mailbox botClientMailbox
 
         let rec loop () = actor {
             let! message = mailbox.Receive()
@@ -130,8 +221,10 @@ module DatabaseActor =
                 chatActor <! chatMessage
             | UserActorMessage(userMessage) ->
                 userActor <! userMessage
+            | MessageInfoActorMessage(infoMessage)->
+                messageInfoActor <! infoMessage
         }
         loop ()
 
-    let spawn parentMailbox = 
-        spawn parentMailbox ActorNames.database (props createProps)
+    let spawn parentMailbox botClientMailbox = 
+        spawn parentMailbox ActorNames.database (props (fun actor -> createProps botClientMailbox actor))

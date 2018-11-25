@@ -2,7 +2,6 @@
 
 open System
 open Akka
-open Akka.Routing
 open Akkling
 open Akka.Actor
 open BotService.Akka.Extensions
@@ -10,12 +9,7 @@ open BotService.Configuration
 open BotService.Telegram
 open BotService.Common
 open BotService.Database
-
-[<Struct>]
-type ChatId = ChatId of Id
-
-[<Struct>]
-type UserId = UserId of Id
+open BotService.BotClient
 
 type BotActorMessage = 
     | BotAlive of BotUsername   
@@ -34,29 +28,6 @@ and MessageHandlerActorMessage =
 
 module MessageHandlerActor =          
     open System.Threading.Tasks
-          
-    let processBotMessageWithChatId mailbox message =
-        match message with
-        | TextMessage(info, message) ->
-            logInfo mailbox (SafeString.defaultArg message.Value "")
-        | AudioMessage(info, message) ->      
-            logInfo mailbox <| sprintf "Audio: Size: %i Name: %s; Size: %i" message.File.Content.Length (SafeString.defaultArg message.Title "") message.File.Content.Length
-        | StickerMessage(info, message) ->
-            logInfo mailbox <| sprintf "Sticker: Emoji: %s; Size: %i" (SafeString.defaultArg message.Emoji "")  message.Sticker.Content.Length
-        | DocumentMessage(info, message) ->
-            logInfo mailbox <| sprintf "Document: FileName: %s; Size: %i" (SafeString.defaultArg message.FileName "")  message.File.Content.Length
-        | VideoMessage(info, message) ->
-            logInfo mailbox <| sprintf "Video: FileName: %s;  Size: %i" (SafeString.defaultArg message.File.Caption "") message.File.Content.Length
-        | VoiceMessage(info, message) ->
-            logInfo mailbox <| sprintf "Voice: Duration: %i seconds; Size: %i" message.Duration message.File.Content.Length
-        | PhotoMessage(info, message) ->
-            logInfo mailbox <| sprintf "Photo: Caption: %s seconds; Size: %i" (SafeString.defaultArg message.File.Caption "") message.File.Content.Length
-        | ChatMembersAddedMessage(info, message) ->
-            ()
-        | ChatMemberLeftMessage(info, message) ->
-            ()
-        | SkipMessage -> 
-            ()
         
     let askForChatId (mailbox: Actor<MessageHandlerActorMessage>) databaseActor (args: IMessageInfoContainer) message = 
         let tellResult res = BotMessageWithChatId(message, ChatId(res))
@@ -77,9 +48,19 @@ module MessageHandlerActor =
             tellSelfOnReply mailbox.Self userIdSource tellResult
         | None -> 
             logInfo mailbox "No message info found"
+                 
+    let processNewMessage mailbox message chatId userId =
+        match message with
+        | TextMessage(info, message) ->
+            logInfo mailbox (SafeString.defaultArg message.Value "")
+        | PhotoMessage(info, message) ->
+            logInfo mailbox <| sprintf "Photo: Caption: %s seconds; Size: %i" (SafeString.defaultArg message.File.Caption "") message.File.Content.Length
+        | StickerMessage(info, message) ->
+            logInfo mailbox <| sprintf "Sticker: Emoji: %s; Size: %i" (SafeString.defaultArg message.Emoji "")  message.Sticker.Content.Length
+        | _ -> ()
 
-    let createProps (mailbox: Actor<MessageHandlerActorMessage>) =            
-        let databaseActor = DatabaseActor.spawn mailbox 
+    let createProps (botClientMailbox: IActorRef<BotClientActorMessage>) (mailbox: Actor<MessageHandlerActorMessage>) =            
+        let databaseActor = DatabaseActor.spawn mailbox botClientMailbox
 
         let rec loop () = actor {
             let! message = mailbox.Receive()
@@ -87,7 +68,7 @@ module MessageHandlerActor =
             | BotMessageWithChatIdAndUserId(message, chatId, userId) ->
                 match message with
                 | NewBotMessage(newMessageArgs)  ->
-                    processBotMessageWithChatId mailbox newMessageArgs
+                    processNewMessage mailbox newMessageArgs chatId userId
                 | EditedBotMessage(editedMessageArgs) ->
                     ()
             | BotMessageWithChatId(message, chatId) ->
@@ -103,19 +84,21 @@ module MessageHandlerActor =
             return! loop ()
         }
         loop ()    
+    
+    let spawn parentMailbox botClientMailbox = 
+        let strategy =
+            fun (exc: Exception) ->
+                Directive.Resume
+            |> Strategy.oneForOne
+            |> Some    
 
-module BotActor =       
-            
+        spawn parentMailbox ActorNames.newMessage (propsS (fun actor -> createProps botClientMailbox actor) strategy)
+
+module BotActor =                 
     let createProps (configuration: BotConfiguration) (mailbox: Actor<_>) =                           
-        let messageActor = 
-            let strategy =
-                fun (exc: Exception) ->
-                    Directive.Resume
-                |> Strategy.oneForOne
-                |> Some               
-            spawn mailbox ActorNames.newMessage (propsS MessageHandlerActor.createProps strategy)
-
         let bot = TelegramClient(configuration)   
+        let botClientActor = BotClientActor.spawn mailbox bot
+        let messageActor = MessageHandlerActor.spawn mailbox botClientActor
 
         bot.HealthCheck() 
         |> Async.Map (fun u -> BotAlive(u))
@@ -148,3 +131,6 @@ module BotActor =
             return! loop ()
         }
         loop ()
+    
+    let spawn system botConfig =
+        spawn system ActorNames.root (props (createProps botConfig))

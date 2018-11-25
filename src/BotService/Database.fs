@@ -101,13 +101,41 @@ module Commands =
         let insertUserCommand: Command<InsertUserDto, Id> =
             fun dto ->
                 let context = Database.Context.getDataContext()
-                let chatEntity = context.Telegram.Users.Create()
+                let userEntity = context.Telegram.Users.Create()
                 let id = Guid.NewGuid()
-                chatEntity.Id <- id
-                chatEntity.UserId <- dto.UserId
-                chatEntity.Username <- dto.Username
-                chatEntity.FirstName <- dto.FirstName
-                chatEntity.LastName <- dto.LastName
+                userEntity.Id <- id
+                userEntity.UserId <- dto.UserId
+                userEntity.Username <- dto.Username
+                userEntity.FirstName <- dto.FirstName
+                userEntity.LastName <- dto.LastName
+                async {      
+                    do! context.SubmitUpdatesAsync()
+                    return Id(id)
+                }
+
+    module MessageInfo =
+        type MessageInfoDto = 
+            { MessageId: int
+              UserId: Guid
+              ChatId: Guid
+              MessageDate: DateTime
+              ForwardedFromChatId: Guid option
+              ForwardedFromUserId: Guid option
+              ReplyToMessageId: Guid option }
+        
+        let insertMessageInfoCommand: Command<MessageInfoDto, Id> =
+            fun dto ->
+                let context = Database.Context.getDataContext()
+                let infoEntity = context.Telegram.MessageInfo.Create()
+                let id = Guid.NewGuid()
+                infoEntity.Id <- id
+                infoEntity.UserId <- dto.UserId
+                infoEntity.ChatId <- dto.ChatId
+                infoEntity.MessageId <- dto.MessageId
+                infoEntity.MessageDate <- dto.MessageDate
+                infoEntity.ReplyToMessageId <- dto.ReplyToMessageId
+                infoEntity.ForwardedFromChatId <- dto.ForwardedFromChatId
+                infoEntity.ForwardedFromUserId <- dto.ForwardedFromUserId
                 async {      
                     do! context.SubmitUpdatesAsync()
                     return Id(id)

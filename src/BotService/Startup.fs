@@ -32,7 +32,7 @@ module ActorSystem =
                 let configuration = BotConfiguration.load configuration.Value               
                 match configuration with 
                 | Ok botConfig ->           
-                    spawn system "bot" (props (BotActor.createProps botConfig)) |> ignore
+                    BotActor.spawn system botConfig |> ignore
                     logger.LogInformation("Spawned root actor")
                 | Error error -> 
                     logger.LogError("Bot configuration error: {Text}", error)

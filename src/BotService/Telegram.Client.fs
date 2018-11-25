@@ -327,6 +327,12 @@ type TelegramClient(botConfig: BotConfiguration) =
         client.GetMeAsync() 
         |> Async.AwaitTask 
         |> Async.Map (fun u -> BotUsername(u.Username))
+    
+    member this.GetChatAsync(chatId: int64) : Async<Chat> = 
+        async {
+            let! chat = client.GetChatAsync(ChatId(chatId)) |> Async.AwaitTask 
+            return! getChat chat
+        }
 
     [<CLIEvent>]
     member this.OnMessage : IEvent<TelegramMessageEvent> =

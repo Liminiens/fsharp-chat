@@ -3,11 +3,15 @@
 module ActorNames = 
     let [<Literal>] root = "bot"
 
+    let [<Literal>] botClient = "bot-client"
+
     let [<Literal>] database = "database"
 
     let [<Literal>] databaseChat = "chat"
 
     let [<Literal>] databaseUser = "user"
+
+    let [<Literal>] databaseMessageInfo = "user"
 
     let [<Literal>] newMessage = "new-message"
 
