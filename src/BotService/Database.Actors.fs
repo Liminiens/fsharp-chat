@@ -2,36 +2,31 @@
 
 open System
 open Akkling
-open Akka
-open Akka.Routing
 open Akka.Actor
+open BotService.Telegram  
+open BotService.Configuration
 open BotService.Akka.Extensions
 
-module DatabaseActor =
-    open System.Threading.Tasks
-    open BotService.Telegram  
-    open BotService.Database.Common 
+type ChatActorMessage = 
+    | GetChatId of MessageWithReply<Chat, Id>
+    | InsertChat of MessageWithReply<Chat, Id>
+    | ReplyChatId of ReplyResult<Id>
+
+type UserActorMessage =
+    | GetUserId of MessageWithReply<User, Id>
+    | InsertUser of MessageWithReply<User, Id>
+    | ReplyUserId of ReplyResult<Id>
+
+type DatabaseActorMessage = 
+    | ChatActorMessage of ChatActorMessage
+    | UserActorMessage of UserActorMessage
+
+module ChatActor =
     open BotService.Database.Commands.Chat
     open BotService.Database.Queries.Chat
-    open BotService.Actors
+    open BotService.Common
 
-    type MessageWithResult<'T, 'TResult> = 'T * TaskCompletionSource<'TResult>
-    type TellResult<'TResult> = 'TResult * TaskCompletionSource<'TResult>
-
-    type GetChatIdResult = 
-        | ChatIdResult of Id
-        | ChatIdNotExists of Chat
-
-    type DatabaseActorMessage = 
-        | GetChatId of MessageWithResult<Chat, Id>
-        | InsertChat of MessageWithResult<Chat, Id>
-        | TellChatId of TellResult<Id>
-    
-    let tellResult: TellResult<'TResult> -> unit =
-        fun (result, resultSource) ->
-            resultSource.SetResult(result)
-
-    let createProps (mailbox: Actor<DatabaseActorMessage>) =
+    let createProps (mailbox: Actor<ChatActorMessage>) =
         let handleMessage message = 
             match message with
             | GetChatId(chat, idSource) ->   
@@ -40,23 +35,23 @@ module DatabaseActor =
                     match chatIdResult with
                     | ChatExists(id) ->
                         logInfoFmt mailbox "Chat already exists: {Chat}" [|id|]
-                        return TellChatId(id, idSource)
+                        return ReplyChatId(id, idSource)
                     | ChatNotFound ->
                         return InsertChat(chat, idSource)
                 } |!> mailbox.Self
             | InsertChat(chat, idSource) ->
                 async {
                     let chatDto = 
-                        { Id = chat.Id; 
-                          Title = Option.ofObj chat.Title; 
-                          Description = Option.ofObj chat.Description;
-                          Username = chat.Username }
+                        { ChatId = chat.Id; 
+                          Title = chat.Title |> Option.map SafeString.value; 
+                          Description = chat.Description |> Option.map SafeString.value;
+                          Username = chat.Username |> Option.map SafeString.value }
                     let! id = insertChatCommand chatDto
                     logInfoFmt mailbox "Inserted new chat: {Chat}" [|id|]
-                    return TellChatId(id, idSource)
+                    return ReplyChatId(id, idSource)
                 } |!> mailbox.Self
-            | TellChatId(data) -> 
-                tellResult data
+            | ReplyChatId(data) -> 
+                reply data
 
         let rec loop () = actor {
             let! message = mailbox.Receive()
@@ -65,16 +60,78 @@ module DatabaseActor =
         loop ()
         
     let spawn parentMailbox = 
-        let router = 
-            SmallestMailboxPool(10).WithResizer(DefaultResizer(1, 10, 3)) 
-            |> Routing.createConfig
-            |> Some
+
         let strategy =
             fun (exc: Exception) ->
-                logError parentMailbox "Actor failed"
-                logException parentMailbox exc
                 Directive.Resume
             |> Strategy.oneForOne
-            |> Some
+            |> Some    
 
-        spawn parentMailbox ActorNames.database (propsRS createProps router strategy)
+        spawn parentMailbox ActorNames.databaseChat (propsS createProps strategy)
+
+module UserActor =
+    open Queries.User
+    open Commands.User
+    open BotService.Common
+
+    let createProps (mailbox: Actor<UserActorMessage>) =
+        let handleMessage message = 
+            match message with
+            | GetUserId(user, idSource) ->   
+                async {       
+                    let! userIdResult = getUserIdQuery (TelegramUserId(user.Id))
+                    match userIdResult with
+                    | UserExists(id) ->
+                        logInfoFmt mailbox "User already exists: {User}" [|id|]
+                        return ReplyUserId(id, idSource)
+                    | UserNotFound ->
+                        return InsertUser(user, idSource)
+                } |!> mailbox.Self
+            | InsertUser(user, idSource) ->
+                async {
+                    let userDto = 
+                        { UserId = user.Id
+                          Username = user.Username |> Option.map SafeString.value
+                          LastName = user.LastName |> Option.map SafeString.value
+                          FirstName = user.FirstName |> Option.map SafeString.value
+                          IsBot = user.IsBot }
+                    let! id = insertUserCommand userDto
+                    logInfoFmt mailbox "Inserted new user: {User}" [|id|]
+                    return ReplyUserId(id, idSource)
+                } |!> mailbox.Self
+            | ReplyUserId(data) -> 
+                reply data
+
+        let rec loop () = actor {
+            let! message = mailbox.Receive()
+            handleMessage message
+        }
+        loop ()
+        
+    let spawn parentMailbox = 
+        let strategy =
+            fun (exc: Exception) ->
+                Directive.Resume
+            |> Strategy.oneForOne
+            |> Some    
+
+        spawn parentMailbox ActorNames.databaseUser (propsS createProps strategy)
+
+module DatabaseActor = 
+
+    let createProps (mailbox: Actor<DatabaseActorMessage>) =
+        let chatActor = ChatActor.spawn mailbox
+        let userActor = UserActor.spawn mailbox
+
+        let rec loop () = actor {
+            let! message = mailbox.Receive()
+            match message with
+            | ChatActorMessage(chatMessage) ->
+                chatActor <! chatMessage
+            | UserActorMessage(userMessage) ->
+                userActor <! userMessage
+        }
+        loop ()
+
+    let spawn parentMailbox = 
+        spawn parentMailbox ActorNames.database (props createProps)

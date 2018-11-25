@@ -9,7 +9,7 @@ open Telegram.Bot.Types
 open Telegram.Bot.Types.Enums
 open MihaZupan
 open BotService.Configuration
-open BotService.Utility
+open BotService.Common
 open Microsoft.FSharp.Core
 open Microsoft.FSharp.Data.UnitSystems.SI.UnitNames  
 
@@ -17,33 +17,33 @@ type BotUsername = BotUsername of string
       
 type Chat = 
     { Id: int64; 
-      Title: string; 
-      Description: string; 
-      Username: option<string>; }
+      Title: SafeString option; 
+      Description: SafeString option; 
+      Username: SafeString option; }
     
 type User = 
     { Id: int;
-      Username: string; 
+      Username: SafeString option; 
       IsBot: bool;
-      FirstName: option<string>;
-      LastName: option<string>; }
+      FirstName: SafeString option;
+      LastName: SafeString option; }
     
 type File = 
     { Content: byte[];
-      Caption: option<string>; }
+      Caption: SafeString option; }
 
 type Text = 
-    { Value: string; }
+    { Value: SafeString option; }
     
 type Sticker = 
-    { Emoji: string; 
-      PackName: option<string>; 
+    { Emoji: SafeString option; 
+      PackName: SafeString option; 
       Thumb: File; 
       Sticker: File; }
     
 type Audio = 
-    { Performer: option<string>; 
-      Title: option<string>; 
+    { Performer: SafeString option; 
+      Title: SafeString option; 
       File: File;  }
 
 type Video = 
@@ -51,7 +51,7 @@ type Video =
       Thumb: option<File>; }
 
 type Document = 
-    { FileName: string; 
+    { FileName: SafeString option; 
       File: File; 
       Thumb: option<File>; }
 
@@ -76,13 +76,16 @@ type MessageInfo =
 type MessageEditedInfo = 
     { MessageInfo: MessageInfo; EditDate: DateTime; }
 
-type EditedText = { Text: string }
+type EditedText = { Text: SafeString option; }
 
-type EditedPhoto = { Caption: string }
+type EditedPhoto = { Caption: SafeString option; }
 
-type EditedAudio = { Caption: string }
+type EditedAudio = { Caption: SafeString option; }
 
-type EditedDocument = { Caption: string }
+type EditedDocument = { Caption: SafeString option; }
+
+type IMessageInfoContainer = 
+    abstract member GetMessageInfo: unit -> MessageInfo option
 
 type TelegramMessageEditedArgs =
     | TextMessageEdited of MessageEditedInfo * EditedText
@@ -91,15 +94,16 @@ type TelegramMessageEditedArgs =
     | DocumentMessageEdited of MessageEditedInfo * EditedDocument
     | SkipEdit
 
-    member this.GetMessageInfo() = 
-        match this with
-        | TextMessageEdited(info, _)
-        | PhotoMessageEdited(info, _)
-        | AudioMessageEdited(info, _)
-        | DocumentMessageEdited(info, _) ->
-            Some info
-        | SkipEdit -> 
-            None    
+    interface IMessageInfoContainer with
+        member this.GetMessageInfo() = 
+            match this with
+            | TextMessageEdited(info, _)
+            | PhotoMessageEdited(info, _)
+            | AudioMessageEdited(info, _)
+            | DocumentMessageEdited(info, _) ->
+                Some info.MessageInfo
+            | SkipEdit -> 
+                None    
 
 type TelegramMessageArgs = 
     | TextMessage of MessageInfo * Text
@@ -113,20 +117,21 @@ type TelegramMessageArgs =
     | ChatMembersAddedMessage of MessageInfo * list<User>
     | SkipMessage   
 
-    member this.GetMessageInfo() = 
-        match this with
-        | TextMessage(info, _)
-        | AudioMessage(info, _)
-        | StickerMessage(info, _)
-        | DocumentMessage(info, _)
-        | VideoMessage(info, _) 
-        | VoiceMessage(info, _) 
-        | PhotoMessage(info, _)
-        | ChatMembersAddedMessage(info, _)
-        | ChatMemberLeftMessage(info, _) ->
-            Some info
-        | SkipMessage -> 
-            None
+    interface IMessageInfoContainer with
+        member this.GetMessageInfo() = 
+            match this with
+            | TextMessage(info, _)
+            | AudioMessage(info, _)
+            | StickerMessage(info, _)
+            | DocumentMessage(info, _)
+            | VideoMessage(info, _) 
+            | VoiceMessage(info, _) 
+            | PhotoMessage(info, _)
+            | ChatMembersAddedMessage(info, _)
+            | ChatMemberLeftMessage(info, _) ->
+                Some info
+            | SkipMessage -> 
+                None
 
 type TelegramMessageEvent =    
     | NewMessage of Async<TelegramMessageArgs>
@@ -152,10 +157,10 @@ type TelegramClient(botConfig: BotConfiguration) =
     
     let getUser (user: Telegram.Bot.Types.User) : User = 
         { Id = user.Id; 
-          Username = user.Username;
+          Username = SafeString.create user.Username;
           IsBot = user.IsBot;
-          FirstName = Option.ofObj user.FirstName; 
-          LastName = Option.ofObj user.LastName; }
+          FirstName = SafeString.create user.FirstName; 
+          LastName = SafeString.create user.LastName; }
 
     let getChat (chat: Telegram.Bot.Types.Chat) : Async<Chat> = 
         async {
@@ -163,10 +168,10 @@ type TelegramClient(botConfig: BotConfiguration) =
                 client.GetChatAsync(Telegram.Bot.Types.ChatId(chat.Id)) 
                 |> Async.AwaitTask
             return 
-                { Title = chat.Title; 
+                { Title = SafeString.create chat.Title; 
                   Id = chat.Id;
-                  Description = chatEntity.Description;
-                  Username = Option.ofObj chat.Username; }
+                  Description = SafeString.create chatEntity.Description;
+                  Username = SafeString.create chat.Username; }
         }
     
     let getMessageInfo (message: Message) : Async<MessageInfo> =
@@ -209,7 +214,7 @@ type TelegramClient(botConfig: BotConfiguration) =
 
     let mapMessage (messageArgs: MessageEventArgs) : Async<TelegramMessageArgs> =      
 
-        let inline getThumbFile (document: ^TContainer) : Async<Option<File>> = 
+        let inline getThumbFile document : Async<Option<File>> = 
             let media = (^TContainer: (member Thumb: PhotoSize)(document))
 
             match isNotNull media with
@@ -230,29 +235,29 @@ type TelegramClient(botConfig: BotConfiguration) =
 
             match message.Type with 
                 | MessageType.Text -> 
-                    let text = { Value = message.Text; }
+                    let text = { Value = SafeString.create message.Text; }
                     return TextMessage(messageInfo, text)
                 | MessageType.Audio ->
                     let! audioFile = downloadFile message.Audio.FileId
                     let audio = 
-                        { Title = Option.ofObj message.Audio.Title; 
-                          Performer = Option.ofObj message.Audio.Performer;
-                          File = { Content = audioFile; Caption = Option.ofObj message.Caption }; }
+                        { Title = SafeString.create message.Audio.Title; 
+                          Performer = SafeString.create message.Audio.Performer;
+                          File = { Content = audioFile; Caption = SafeString.create message.Caption }; }
                     return AudioMessage(messageInfo, audio)
                 | MessageType.Document ->
                     let! documentFile = downloadFile message.Document.FileId
                     let! thumbFile = getThumbFile message.Document
                     let document = 
-                        { FileName = message.Document.FileName;
+                        { FileName = SafeString.create message.Document.FileName;
                           Thumb = thumbFile;
-                          File = { Content = documentFile; Caption = Option.ofObj message.Caption };}
+                          File = { Content = documentFile; Caption = SafeString.create message.Caption };}
                     return DocumentMessage(messageInfo, document)
                 | MessageType.Video ->
                     let! videoFile = downloadFile message.Video.FileId
                     let! thumbFile = getThumbFile message.Video                         
                     let video = 
                         { Thumb = thumbFile; 
-                          File = { Content = videoFile; Caption = Option.ofObj message.Caption }; }
+                          File = { Content = videoFile; Caption = SafeString.create message.Caption }; }
                     return VideoMessage(messageInfo, video)
                 | MessageType.Sticker ->
                     let! (thumbFile, stickerFile) = 
@@ -260,8 +265,8 @@ type TelegramClient(botConfig: BotConfiguration) =
                         |> Async.Parallel2
                             
                     let stickerInfo = 
-                        { Emoji = message.Sticker.Emoji;
-                          PackName = Option.ofObj message.Sticker.SetName;
+                        { Emoji = SafeString.create message.Sticker.Emoji;
+                          PackName = SafeString.create message.Sticker.SetName;
                           Thumb = { Content = thumbFile; Caption = None };
                           Sticker = { Content = stickerFile; Caption = None } }
                     return StickerMessage(messageInfo, stickerInfo)
@@ -270,7 +275,7 @@ type TelegramClient(botConfig: BotConfiguration) =
                         message.Photo 
                         |> Array.maxBy (fun s -> s.FileSize)                    
                     let! photoFile = downloadFile maxPhotoSize.FileId
-                    let photoInfo = { File = { Content = photoFile; Caption = Option.ofObj message.Caption }; }
+                    let photoInfo = { File = { Content = photoFile; Caption = SafeString.create message.Caption }; }
                     return PhotoMessage(messageInfo, photoInfo)
                 | MessageType.Voice ->
                     let! voiceFile = downloadFile message.Voice.FileId
@@ -301,16 +306,16 @@ type TelegramClient(botConfig: BotConfiguration) =
             match message.Type with 
             | MessageType.Text ->
                 let text = message.Text
-                return TextMessageEdited(messageInfo, { Text = text })
+                return TextMessageEdited(messageInfo, { Text = SafeString.create text })
             | MessageType.Audio ->
                 let caption = message.Caption
-                return AudioMessageEdited(messageInfo, { Caption = caption })
+                return AudioMessageEdited(messageInfo, { Caption = SafeString.create caption })
             | MessageType.Photo ->
                 let caption = message.Caption
-                return PhotoMessageEdited(messageInfo, { Caption = caption })
+                return PhotoMessageEdited(messageInfo, { Caption = SafeString.create caption })
             | MessageType.Document ->
                 let caption = message.Caption
-                return DocumentMessageEdited(messageInfo, { Caption = caption })
+                return DocumentMessageEdited(messageInfo, { Caption = SafeString.create caption })
             | _ ->
                 return SkipEdit
         }

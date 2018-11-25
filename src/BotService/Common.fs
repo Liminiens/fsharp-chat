@@ -1,7 +1,27 @@
-﻿namespace BotService.Utility
+﻿namespace BotService.Common
+
+type SafeString = 
+    private 
+    | SafeString of string   
+
+module SafeString =
+    let create (str: string) = 
+        if not <| System.String.IsNullOrWhiteSpace(str) then
+            SafeString str |> Some
+        else
+            None
+    
+    let value (SafeString str) = str
+
+    let (|SafeString|) s = value s
+
+    let defaultArg safeStr arg = 
+        match safeStr with
+        | (Some(SafeString(str))) -> str
+        | None -> arg
 
 [<AutoOpen>]
-module Common =
+module Nulls =
     let inline isNotNull obj =
         isNull obj |> not
 

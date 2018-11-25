@@ -1,5 +1,16 @@
 ﻿namespace BotService.Configuration
 
+module ActorNames = 
+    let [<Literal>] root = "bot"
+
+    let [<Literal>] database = "database"
+
+    let [<Literal>] databaseChat = "chat"
+
+    let [<Literal>] databaseUser = "user"
+
+    let [<Literal>] newMessage = "new-message"
+
 module Database =
     open FSharp.Management
 
@@ -67,8 +78,7 @@ module BotConfiguration =
                     then 
                         ProxyConfigurationError 
                     else 
-                        WithoutProxy
-                                   
+                        WithoutProxy                        
         
         match configuration.Token with
         | Valid ->
@@ -76,9 +86,9 @@ module BotConfiguration =
             | WithProxy ->
                 let proxy = 
                     { Host = configuration.Socks5Host; 
-                        Port = int configuration.Socks5Port; 
-                        Username = configuration.Socks5Username; 
-                        Password = configuration.Socks5Password }
+                      Port = int configuration.Socks5Port; 
+                      Username = configuration.Socks5Username; 
+                      Password = configuration.Socks5Password }
                 { Token = configuration.Token; Socks5Proxy = Some proxy } 
                 |> Ok
             | WithoutProxy ->
